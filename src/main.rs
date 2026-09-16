@@ -291,7 +291,7 @@ async fn main() -> ExitCode {
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("{}", format!("错误：{e:#}").red());
+            eprintln!("{}", format!("错误：{e:?}").red());
             ExitCode::FAILURE
         }
     }
