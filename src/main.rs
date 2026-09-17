@@ -1,17 +1,17 @@
 mod config;
 mod digest;
-mod downloader;
 mod grammar;
 mod installed_detector;
+mod network;
 mod options;
 mod scheme;
 mod yaml;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
-use downloader::Downloader;
 use inquire::{Confirm, Select};
 use installed_detector::{InstalledGrammar, InstalledSchema};
+use network::Network;
 use octocrab::models::repos::{Asset, Release};
 use options::{AuxCode, AuxMode, Pinyin, Scheme};
 use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
@@ -64,7 +64,12 @@ async fn get_latest() -> Result<LatestInfo> {
     Ok(LatestInfo { schema, grammar })
 }
 
-fn check_update(schema: &InstalledSchema, grammar: Option<&InstalledGrammar>, latest: &LatestInfo) {
+async fn check_update(
+    downloader: &Network,
+    schema: &InstalledSchema,
+    grammar: Option<&InstalledGrammar>,
+    latest: &LatestInfo,
+) {
     if let Some(latest) = &latest.schema {
         match scheme::check_update(schema, latest).context("检查输入方案更新失败") {
             Ok(has_update) => println!(
@@ -82,7 +87,9 @@ fn check_update(schema: &InstalledSchema, grammar: Option<&InstalledGrammar>, la
 
     if let Some(installed) = grammar {
         if let Some(latest) = &latest.grammar {
-            match grammar::check_update(&installed.path, latest).context("检查语法模型更新失败")
+            match grammar::check_update(downloader, &installed.path, latest)
+                .await
+                .context("检查语法模型更新失败")
             {
                 Ok(has_update) => println!(
                     "语法模型： {}",
@@ -141,7 +148,7 @@ enum Action {
 
 async fn run() -> Result<()> {
     let root = std::env::current_dir()?;
-    let downloader = Downloader::new()?;
+    let downloader = Network::new()?;
 
     let latest = get_latest();
     let installed = resolve_installed(&root);
@@ -151,7 +158,13 @@ async fn run() -> Result<()> {
     let action = match &installed_schema {
         None => Action::Install,
         Some(installed_schema) => {
-            check_update(installed_schema, installed_grammar.as_ref(), &latest);
+            check_update(
+                &downloader,
+                installed_schema,
+                installed_grammar.as_ref(),
+                &latest,
+            )
+            .await;
 
             Select::new("选择操作", {
                 let mut actions = Vec::new();

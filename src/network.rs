@@ -1,20 +1,23 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use indicatif::{ProgressBar, ProgressStyle};
 use octocrab::{self, models::repos::Asset};
-use reqwest::Client;
+use reqwest::{Client, StatusCode, header};
 use std::{
+    fs,
     io::{self, Seek, Write},
+    path::Path,
     time::Duration,
 };
 use tempfile::NamedTempFile;
 
 use crate::digest;
 
-pub struct Downloader {
+pub struct Network {
     client: Client,
 }
 
-impl Downloader {
+impl Network {
     pub fn new() -> Result<Self> {
         let client = Client::builder()
             .user_agent(concat!(
@@ -25,6 +28,21 @@ impl Downloader {
             .timeout(Duration::from_hours(1))
             .build()?;
         Ok(Self { client })
+    }
+
+    pub async fn check_update(&self, path: &Path, asset: &Asset) -> Result<bool> {
+        let modified: DateTime<Utc> = fs::metadata(path)?.modified()?.into();
+        let response = self
+            .client
+            .get(asset.browser_download_url.clone())
+            .header(
+                header::IF_MODIFIED_SINCE,
+                modified.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
+            )
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(response.status() != StatusCode::NOT_MODIFIED)
     }
 
     pub async fn download(&self, asset: &Asset) -> Result<NamedTempFile> {
@@ -38,6 +56,12 @@ impl Downloader {
             .send()
             .await?
             .error_for_status()?;
+
+        let modified = response
+            .headers()
+            .get(header::LAST_MODIFIED)
+            .map(|value| -> Result<_> { Ok(DateTime::parse_from_rfc2822(value.to_str()?)?.into()) })
+            .transpose()?;
 
         let total = response.content_length();
         let progress = ProgressBar::new(total.unwrap_or(0)).with_style(
@@ -53,6 +77,9 @@ impl Downloader {
         tempfile.flush()?;
         tempfile.seek(io::SeekFrom::Start(0))?;
         digest::verify(tempfile.as_file(), asset)?;
+        if let Some(modified) = modified {
+            tempfile.as_file().set_modified(modified)?;
+        }
 
         progress.finish_and_clear();
         Ok(tempfile)

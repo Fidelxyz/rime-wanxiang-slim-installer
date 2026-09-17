@@ -1,12 +1,10 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use octocrab::models::repos::Asset;
-use std::fs::File;
 use std::path::Path;
 use tempfile::NamedTempFile;
 
-use crate::digest;
-use crate::downloader::Downloader;
+use crate::network::Network;
 
 pub const GRAMMAR_NAME: &str = "wanxiang-lts-zh-hans.gram";
 
@@ -22,9 +20,8 @@ pub async fn get_latest() -> Result<Asset> {
         .context("Release 中未找到语法模型 Asset")
 }
 
-pub fn check_update(path: &Path, latest: &Asset) -> Result<bool> {
-    let installed = File::open(path)?;
-    Ok(!digest::matches(&installed, latest)?)
+pub async fn check_update(downloader: &Network, path: &Path, latest: &Asset) -> Result<bool> {
+    downloader.check_update(path, latest).await
 }
 
 pub fn prompt_install(root: &Path) {
@@ -37,7 +34,7 @@ pub fn prompt_install(root: &Path) {
     }
 }
 
-pub async fn update(downloader: &Downloader, root: &Path, asset: &Asset) -> Result<()> {
+pub async fn update(downloader: &Network, root: &Path, asset: &Asset) -> Result<()> {
     let downloaded = downloader
         .download(asset)
         .await

@@ -7,8 +7,8 @@ use tempfile::NamedTempFile;
 use walkdir::WalkDir;
 use zip::ZipArchive;
 
-use crate::downloader::Downloader;
 use crate::installed_detector::InstalledSchema;
+use crate::network::Network;
 use crate::options::Scheme;
 use crate::print_err;
 
@@ -49,7 +49,7 @@ pub fn prompt_install(root: &Path) -> Result<()> {
 }
 
 pub async fn update(
-    downloader: &Downloader,
+    downloader: &Network,
     root: &Path,
     scheme: Scheme,
     release: Release,

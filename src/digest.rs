@@ -4,10 +4,6 @@ use octocrab::{self, models::repos::Asset};
 use sha2::{Digest, Sha256};
 use std::{fs::File, io};
 
-pub fn matches(file: &File, asset: &Asset) -> Result<bool> {
-    Ok(file_digest(file)? == asset_digest(asset)?)
-}
-
 pub fn verify(file: &File, asset: &Asset) -> Result<()> {
     let file_digest = file_digest(file)?;
     let asset_digest = asset_digest(asset)?;
