@@ -94,9 +94,16 @@ async fn check_update(
                 Ok(has_update) => println!(
                     "语法模型： {}",
                     if has_update {
-                        format!("有更新 {}", latest.updated_at.with_timezone(&chrono::Local))
+                        format!(
+                            "有更新 {}",
+                            latest
+                                .updated_at
+                                .with_timezone(&chrono::Local)
+                                .format("%Y-%m-%d %H:%M:%S %Z")
+                        )
+                        .yellow()
                     } else {
-                        String::from("已是最新")
+                        "已是最新".green()
                     }
                 ),
                 Err(e) => print_err(e),
@@ -127,6 +134,10 @@ fn prompt_install(root: &Path, install_scheme: bool, install_grammar: bool) -> R
         grammar::prompt_install(root);
     }
     Ok(Confirm::new("是否继续？").with_default(true).prompt()?)
+}
+
+fn prompt_finish() {
+    println!("{}", "完成，请重新部署。".bright_green());
 }
 
 #[derive(Clone, Display, PartialEq)]
@@ -282,6 +293,8 @@ async fn run() -> Result<()> {
                 let latest = latest.grammar.context("未获取到最新语法模型")?;
                 grammar::update(&downloader, &root, &latest).await?;
             }
+
+            prompt_finish();
         }
 
         Action::InstallGrammar | Action::UpdateGrammar => {
@@ -291,7 +304,9 @@ async fn run() -> Result<()> {
                 return Ok(());
             }
 
-            return grammar::update(&downloader, &root, &latest).await;
+            grammar::update(&downloader, &root, &latest).await?;
+
+            prompt_finish();
         }
 
         Action::Exit => return Ok(()),
