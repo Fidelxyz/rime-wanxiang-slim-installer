@@ -6,7 +6,7 @@ pub enum Schema {
     #[strum(props(code = "base"))]
     #[strum(props(schema_id = "wanxiang"))]
     Base,
-    #[strum(to_string = "专业版 (Pro)")]
+    #[strum(to_string = "进阶版 (Pro)")]
     #[strum(props(code = "pro"))]
     #[strum(props(schema_id = "wanxiang_pro"))]
     Pro(Option<AuxCode>),
