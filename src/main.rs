@@ -4,19 +4,22 @@ mod grammar;
 mod installed_detector;
 mod network;
 mod options;
-mod scheme;
+mod schema;
 mod yaml;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use inquire::{Confirm, Select};
-use installed_detector::{InstalledGrammar, InstalledSchema};
-use network::Network;
-use octocrab::models::repos::{Asset, Release};
-use options::{AuxCode, AuxMode, Pinyin, Scheme};
 use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
 use strum::{Display, IntoEnumIterator};
 use tokio::join;
+
+use crate::config::Config;
+use crate::grammar::LatestGrammar;
+use crate::installed_detector::{InstalledGrammar, InstalledSchema};
+use crate::network::Network;
+use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
+use crate::schema::LatestSchema;
 
 pub(crate) fn print_err(e: impl Display) {
     eprintln!("{}", format!("错误：{e:#}").red());
@@ -31,7 +34,7 @@ fn resolve_installed(root: &Path) -> Result<(Option<InstalledSchema>, Option<Ins
         Ordering::Greater => {
             let i = Select::new(
                 "检测到多个主方案，请指定",
-                all_schema.iter().map(|i| i.scheme).collect(),
+                all_schema.iter().map(|i| i.schema).collect(),
             )
             .raw_prompt()?
             .index;
@@ -44,12 +47,12 @@ fn resolve_installed(root: &Path) -> Result<(Option<InstalledSchema>, Option<Ins
 }
 
 struct LatestInfo {
-    schema: Option<Release>,
-    grammar: Option<Asset>,
+    schema: Option<LatestSchema>,
+    grammar: Option<LatestGrammar>,
 }
 
 async fn get_latest() -> Result<LatestInfo> {
-    let schema = scheme::get_latest(false); // TODO: prerelease option
+    let schema = schema::get_latest(false); // TODO: prerelease option
     let grammar = grammar::get_latest();
     let (schema, grammar) = join!(schema, grammar);
 
@@ -64,53 +67,72 @@ async fn get_latest() -> Result<LatestInfo> {
     Ok(LatestInfo { schema, grammar })
 }
 
+#[derive(Default)]
+struct HasUpdate {
+    schema: bool,
+    grammar: bool,
+}
+
 async fn check_update(
     downloader: &Network,
     schema: &InstalledSchema,
     grammar: Option<&InstalledGrammar>,
     latest: &LatestInfo,
-) {
-    if let Some(latest) = &latest.schema {
-        match scheme::check_update(schema, latest).context("检查输入方案更新失败") {
-            Ok(has_update) => println!(
-                "输入方案： v{} -> {}",
-                schema.version,
-                if has_update {
-                    latest.tag_name.yellow()
-                } else {
-                    "已是最新".green()
-                }
-            ),
-            Err(e) => print_err(e),
-        }
-    }
-
-    if let Some(installed) = grammar {
-        if let Some(latest) = &latest.grammar {
-            match grammar::check_update(downloader, &installed.path, latest)
-                .await
-                .context("检查语法模型更新失败")
-            {
-                Ok(has_update) => println!(
-                    "语法模型： {}",
+) -> HasUpdate {
+    let schema_has_update = latest.schema.as_ref().is_some_and(|latest| {
+        schema::check_update(schema, latest)
+            .context("检查输入方案更新失败")
+            .inspect(|&has_update| {
+                println!(
+                    "输入方案： v{} -> {}",
+                    schema.version,
                     if has_update {
-                        format!(
-                            "有更新 {}",
-                            latest
-                                .updated_at
-                                .with_timezone(&chrono::Local)
-                                .format("%Y-%m-%d %H:%M:%S %Z")
-                        )
-                        .yellow()
+                        latest.release.tag_name.yellow()
                     } else {
                         "已是最新".green()
                     }
-                ),
-                Err(e) => print_err(e),
-            }
+                );
+            })
+            .inspect_err(|e| print_err(e))
+            .unwrap_or(false)
+    });
+
+    let grammar_has_update = match (grammar, latest.grammar.as_ref()) {
+        (None, _) => {
+            println!("语法模型： 未安装");
+            false
         }
-    } else {
-        println!("语法模型： 未安装");
+        (Some(installed), Some(latest)) => {
+            grammar::check_update(downloader, &installed.path, latest)
+                .await
+                .context("检查语法模型更新失败")
+                .inspect(|&has_update| {
+                    println!(
+                        "语法模型： {}",
+                        if has_update {
+                            format!(
+                                "有更新 {}",
+                                latest
+                                    .asset
+                                    .updated_at
+                                    .with_timezone(&chrono::Local)
+                                    .format("%Y-%m-%d %H:%M:%S %Z")
+                            )
+                            .yellow()
+                        } else {
+                            "已是最新".green()
+                        }
+                    );
+                })
+                .inspect_err(|e| print_err(e))
+                .unwrap_or(false)
+        }
+        _ => false,
+    };
+
+    HasUpdate {
+        schema: schema_has_update,
+        grammar: grammar_has_update,
     }
 }
 
@@ -126,13 +148,92 @@ where
         .prompt()?)
 }
 
-fn prompt_install(root: &Path, install_scheme: bool, install_grammar: bool) -> Result<bool> {
-    if install_scheme {
-        scheme::prompt_install(root)?;
-    }
-    if install_grammar {
-        grammar::prompt_install(root);
-    }
+#[derive(Default)]
+struct Options {
+    schema: Option<Schema>,
+    config: Option<Config>,
+    with_grammar: Option<bool>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct Required {
+    schema: bool,
+    config: bool,
+    with_grammar: bool,
+}
+
+fn prompt_options(required: Required, default: &Options, always_ask: bool) -> Result<Options> {
+    let schema = if required.schema {
+        match default.schema.filter(|_| !always_ask) {
+            Some(schema) => schema,
+            None => select(
+                "选择输入方案",
+                Schema::iter().collect(),
+                default.schema.as_ref(),
+            )?,
+        }
+        .into()
+    } else {
+        None
+    };
+
+    let pinyin = if required.config {
+        let default = default.config.as_ref().and_then(|config| config.pinyin);
+        select("选择拼音方案", Pinyin::iter().collect(), default.as_ref())?.into()
+    } else {
+        None
+    };
+
+    let schema = if schema == Some(Schema::Pro(None)) {
+        Schema::Pro(select("选择辅助码包体", AuxCode::iter().collect(), None)?.into()).into()
+    } else {
+        schema
+    };
+
+    let aux_mode = if matches!(schema, Some(Schema::Pro(_))) {
+        match default
+            .config
+            .as_ref()
+            .and_then(|config| config.aux_mode)
+            .filter(|_| !always_ask)
+        {
+            Some(aux_mode) => aux_mode,
+            None => select(
+                "选择辅助码引导模式",
+                AuxMode::iter().collect(),
+                default
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.aux_mode)
+                    .as_ref(),
+            )?,
+        }
+        .into()
+    } else {
+        None
+    };
+
+    let with_grammar = if required.with_grammar {
+        Confirm::new("是否安装语法模型？")
+            .with_default(true)
+            .prompt()?
+            .into()
+    } else {
+        None
+    };
+
+    Ok(Options {
+        schema,
+        config: if required.config {
+            Some(Config { pinyin, aux_mode })
+        } else {
+            None
+        },
+        with_grammar,
+    })
+}
+
+fn prompt_confirm() -> Result<bool> {
     Ok(Confirm::new("是否继续？").with_default(true).prompt()?)
 }
 
@@ -146,13 +247,17 @@ enum Action {
     #[strum(to_string = "更新全部")]
     UpdateAll,
     #[strum(to_string = "更新输入方案")]
-    UpdateScheme,
+    UpdateSchema,
+    #[strum(to_string = "更新输入方案（强制更新）")]
+    ForceUpdateSchema,
     #[strum(to_string = "安装语法模型")]
     InstallGrammar,
     #[strum(to_string = "更新语法模型")]
     UpdateGrammar,
+    #[strum(to_string = "更新语法模型（强制更新）")]
+    ForceUpdateGrammar,
     #[strum(to_string = "切换方案")]
-    SwitchScheme,
+    SwitchSchema,
     #[strum(to_string = "退出")]
     Exit,
 }
@@ -165,11 +270,12 @@ async fn run() -> Result<()> {
     let installed = resolve_installed(&root);
     let (installed_schema, installed_grammar) = installed?;
     let latest = latest.await?;
+    let mut has_update = HasUpdate::default();
 
     let action = match &installed_schema {
         None => Action::Install,
         Some(installed_schema) => {
-            check_update(
+            has_update = check_update(
                 &downloader,
                 installed_schema,
                 installed_grammar.as_ref(),
@@ -178,133 +284,237 @@ async fn run() -> Result<()> {
             .await;
 
             Select::new("选择操作", {
-                let mut actions = Vec::new();
-                if installed_grammar.is_some() {
-                    actions.push(Action::UpdateAll);
-                }
-                actions.push(Action::UpdateScheme);
-                actions.push(match &installed_grammar {
-                    Some(_) => Action::UpdateGrammar,
-                    None => Action::InstallGrammar,
-                });
-                actions.push(Action::SwitchScheme);
-                actions.push(Action::Exit);
-                actions
+                vec![
+                    Action::UpdateAll,
+                    if has_update.schema {
+                        Action::UpdateSchema
+                    } else {
+                        Action::ForceUpdateSchema
+                    },
+                    match (installed_grammar, has_update.grammar) {
+                        (None, _) => Action::InstallGrammar,
+                        (Some(_), true) => Action::UpdateGrammar,
+                        (Some(_), false) => Action::ForceUpdateGrammar,
+                    },
+                    Action::SwitchSchema,
+                    Action::Exit,
+                ]
             })
+            .prompt()?
         }
-        .prompt()?,
     };
 
     match action {
-        Action::Install | Action::UpdateAll | Action::UpdateScheme | Action::SwitchScheme => {
-            let latest_schema = latest.schema.context("未获取到最新输入方案")?;
+        Action::Install => {
+            let latest_schema = latest.schema.context("无法获取最新输入方案")?;
 
-            #[allow(clippy::items_after_statements)]
-            fn select_scheme(default: Option<&Scheme>) -> Result<Scheme> {
-                select("选择输入方案", Scheme::iter().collect(), default)
-            }
-            let scheme = if action == Action::SwitchScheme {
-                select_scheme(
-                    installed_schema
-                        .as_ref()
-                        .map(|installed| installed.scheme)
-                        .as_ref(),
-                )?
-            } else {
-                match &installed_schema.as_ref().map(|installed| installed.scheme) {
-                    Some(scheme) => *scheme,
-                    None => select_scheme(None)?,
-                }
-            };
+            let options = prompt_options(
+                Required {
+                    schema: true,
+                    config: true,
+                    with_grammar: true,
+                },
+                &Options::default(),
+                true,
+            )?;
+            let schema = options.schema.unwrap();
+            let config = options.config.unwrap();
+            let with_grammar = options.with_grammar.unwrap();
 
-            let pinyin = if matches!(action, Action::Install | Action::SwitchScheme) {
-                let default = installed_schema
-                    .as_ref()
-                    .and_then(|installed| installed.pinyin);
-                Some(select(
-                    "选择拼音方案",
-                    Pinyin::iter().collect(),
-                    default.as_ref(),
-                )?)
-            } else {
-                None
-            };
-
-            let scheme = if scheme == Scheme::Pro(None) {
-                Scheme::Pro(select("选择辅助码包体", AuxCode::iter().collect(), None)?.into())
-            } else {
-                scheme
-            };
-
-            let aux_mode = if matches!(scheme, Scheme::Pro(_))
-                && matches!(action, Action::Install | Action::SwitchScheme)
-            {
-                let default = installed_schema
-                    .as_ref()
-                    .and_then(|installed| installed.aux_mode);
-                Some(select(
-                    "选择辅助码引导模式",
-                    AuxMode::iter().collect(),
-                    default.as_ref(),
-                )?)
-            } else {
-                None
-            };
-
-            let with_grammar = match action {
-                Action::Install => Confirm::new("是否安装语法模型？")
-                    .with_default(true)
-                    .prompt()?,
-                Action::UpdateAll => true,
-                _ => false,
-            };
-
-            println!("{} 将安装输入方案：", "==>".bright_green());
-            println!("  方案：{}", scheme.to_string().bright_cyan());
-            if let Scheme::Pro(aux) = scheme {
-                println!("  辅助码方案：{}", aux.unwrap().to_string().bright_cyan());
+            if with_grammar && latest.grammar.is_none() {
+                bail!("无法获取最新语法模型");
             }
 
-            if matches!(action, Action::Install | Action::SwitchScheme) {
-                println!("{} 将应用方案配置：", "==>".bright_green());
-                if let Some(pinyin) = pinyin {
-                    println!("  拼音方案：{}", pinyin.to_string().bright_cyan());
-                }
-                if let Some(aux_mode) = aux_mode {
-                    println!("  辅助码引导模式：{}", aux_mode.to_string().bright_cyan());
-                }
+            schema::info_install(schema);
+            config::info_apply(config);
+            if with_grammar {
+                grammar::info_install();
             }
 
-            if !prompt_install(&root, true, with_grammar)? {
+            schema::warn_install(&root)?;
+            config::warn_apply(&root, schema);
+            if with_grammar {
+                grammar::warn_install(&root);
+            }
+
+            if !prompt_confirm()? {
                 return Ok(());
             }
 
-            scheme::update(&downloader, &root, scheme, latest_schema).await?;
-
-            if matches!(action, Action::Install | Action::SwitchScheme) {
-                config::apply(&root, scheme, pinyin, aux_mode).context("应用方案配置失败")?;
-            }
-
-            if action == Action::SwitchScheme {
-                scheme::cleanup(&root, installed_schema.unwrap().scheme, scheme);
-            }
-
+            schema::update(&downloader, &root, schema, latest_schema)
+                .await
+                .context("更新输入方案失败")?;
+            config::apply(&root, schema, config).context("应用方案配置失败")?;
             if with_grammar {
-                let latest = latest.grammar.context("未获取到最新语法模型")?;
-                grammar::update(&downloader, &root, &latest).await?;
+                grammar::update(&downloader, &root, &latest.grammar.unwrap()).await?;
             }
 
             prompt_finish();
         }
 
-        Action::InstallGrammar | Action::UpdateGrammar => {
-            let latest = latest.grammar.context("未获取到最新语法模型")?;
-
-            if !prompt_install(&root, false, true)? {
+        Action::UpdateAll => {
+            if !has_update.schema && !has_update.grammar {
+                println!(
+                    "{}",
+                    "输入方案和语法模型均已是最新，无需更新。".bright_green()
+                );
                 return Ok(());
             }
 
-            grammar::update(&downloader, &root, &latest).await?;
+            let options = prompt_options(
+                Required {
+                    schema: true,
+                    ..Default::default()
+                },
+                &Options {
+                    schema: installed_schema.map(|installed| installed.schema),
+                    ..Default::default()
+                },
+                false,
+            )?;
+            let schema = options.schema.unwrap();
+
+            if has_update.schema {
+                schema::info_install(schema);
+            }
+            if has_update.grammar {
+                grammar::info_install();
+            }
+
+            if has_update.schema {
+                schema::warn_install(&root)?;
+            }
+            if has_update.grammar {
+                grammar::warn_install(&root);
+            }
+
+            if !prompt_confirm()? {
+                return Ok(());
+            }
+
+            if has_update.schema {
+                schema::update(&downloader, &root, schema, latest.schema.unwrap())
+                    .await
+                    .context("更新输入方案失败")?;
+            }
+            if has_update.grammar {
+                grammar::update(&downloader, &root, &latest.grammar.unwrap())
+                    .await
+                    .context("更新语法模型失败")?;
+            }
+
+            prompt_finish();
+        }
+
+        Action::UpdateSchema | Action::ForceUpdateSchema => {
+            let latest_schema = latest.schema.context("无法获取最新输入方案")?;
+
+            let options = prompt_options(
+                Required {
+                    schema: true,
+                    ..Default::default()
+                },
+                &Options {
+                    schema: installed_schema.map(|installed| installed.schema),
+                    ..Default::default()
+                },
+                false,
+            )?;
+            let schema = options.schema.unwrap();
+
+            schema::info_install(schema);
+
+            schema::warn_install(&root)?;
+
+            if !prompt_confirm()? {
+                return Ok(());
+            }
+
+            schema::update(&downloader, &root, schema, latest_schema)
+                .await
+                .context("更新输入方案失败")?;
+
+            prompt_finish();
+        }
+
+        Action::SwitchSchema => {
+            let options = prompt_options(
+                Required {
+                    schema: true,
+                    config: true,
+                    ..Default::default()
+                },
+                &Options {
+                    schema: installed_schema.as_ref().map(|installed| installed.schema),
+                    config: installed_schema.as_ref().map(|installed| installed.config),
+                    ..Default::default()
+                },
+                true,
+            )?;
+            let schema = options.schema.unwrap();
+            let config = options.config.unwrap();
+
+            let install_schema = installed_schema
+                .as_ref()
+                .is_none_or(|installed| installed.schema != schema);
+            let apply_config = installed_schema
+                .as_ref()
+                .is_none_or(|installed| installed.config != config);
+
+            if !install_schema && !apply_config {
+                println!("{}", "输入方案和方案配置无变动。".bright_green());
+                return Ok(());
+            }
+
+            if install_schema && latest.schema.is_none() {
+                bail!("无法获取最新输入方案");
+            }
+
+            if install_schema {
+                schema::info_install(schema);
+            }
+            if apply_config {
+                config::info_apply(config);
+            }
+
+            if install_schema {
+                schema::warn_install(&root)?;
+            }
+            if apply_config {
+                config::warn_apply(&root, schema);
+            }
+
+            if !prompt_confirm()? {
+                return Ok(());
+            }
+
+            if install_schema {
+                schema::update(&downloader, &root, schema, latest.schema.unwrap())
+                    .await
+                    .context("更新输入方案失败")?;
+                schema::cleanup(&root, installed_schema.unwrap().schema, schema);
+            }
+            if apply_config {
+                config::apply(&root, schema, config).context("应用方案配置失败")?;
+            }
+
+            prompt_finish();
+        }
+
+        Action::InstallGrammar | Action::UpdateGrammar | Action::ForceUpdateGrammar => {
+            let latest_grammar = latest.grammar.context("无法获取最新语法模型")?;
+
+            grammar::info_install();
+
+            grammar::warn_install(&root);
+
+            if !prompt_confirm()? {
+                return Ok(());
+            }
+
+            grammar::update(&downloader, &root, &latest_grammar)
+                .await
+                .context("更新语法模型失败")?;
 
             prompt_finish();
         }

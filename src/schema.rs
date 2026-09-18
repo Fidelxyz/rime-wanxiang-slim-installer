@@ -9,10 +9,15 @@ use zip::ZipArchive;
 
 use crate::installed_detector::InstalledSchema;
 use crate::network::Network;
-use crate::options::Scheme;
+use crate::options::Schema;
 use crate::print_err;
 
-pub async fn get_latest(prerelease: bool) -> Result<Release> {
+#[derive(Clone, PartialEq)]
+pub struct LatestSchema {
+    pub release: Release,
+}
+
+pub async fn get_latest(prerelease: bool) -> Result<LatestSchema> {
     let octocrab = octocrab::instance();
     let repo = octocrab.repos("Fidelxyz", "rime-wanxiang-slim");
     let release = if prerelease {
@@ -28,16 +33,24 @@ pub async fn get_latest(prerelease: bool) -> Result<Release> {
     } else {
         repo.releases().get_latest().await?
     };
-    Ok(release)
+    Ok(LatestSchema { release })
 }
 
-pub fn check_update(installed: &InstalledSchema, latest: &Release) -> Result<bool> {
+pub fn check_update(installed: &InstalledSchema, latest: &LatestSchema) -> Result<bool> {
     let installed_version = Version::parse(&installed.version)?;
-    let latest_version = Version::parse(latest.tag_name.trim_start_matches('v'))?;
+    let latest_version = Version::parse(latest.release.tag_name.trim_start_matches('v'))?;
     Ok(latest_version > installed_version)
 }
 
-pub fn prompt_install(root: &Path) -> Result<()> {
+pub fn info_install(schema: Schema) {
+    println!("{} 将安装输入方案：", "==>".bright_green());
+    println!("  方案：{}", schema.to_string().bright_cyan());
+    if let Schema::Pro(aux) = schema {
+        println!("  辅助码方案：{}", aux.unwrap().to_string().bright_cyan());
+    }
+}
+
+pub fn warn_install(root: &Path) -> Result<()> {
     println!(
         "{}",
         format!("将安装输入方案至目录：{}", root.display()).bright_yellow()
@@ -51,10 +64,10 @@ pub fn prompt_install(root: &Path) -> Result<()> {
 pub async fn update(
     downloader: &Network,
     root: &Path,
-    scheme: Scheme,
-    release: Release,
+    schema: Schema,
+    latest: LatestSchema,
 ) -> Result<()> {
-    let asset = asset(scheme, release)?;
+    let asset = asset(schema, latest)?;
     let downloaded = downloader
         .download(&asset)
         .await
@@ -63,16 +76,17 @@ pub async fn update(
     Ok(())
 }
 
-fn asset(scheme: Scheme, release: Release) -> Result<Asset> {
-    release
+fn asset(schema: Schema, latest: LatestSchema) -> Result<Asset> {
+    latest
+        .release
         .assets
         .into_iter()
         .find(|asset| {
             asset.name
-                == match scheme {
-                    Scheme::Base => String::from("rime-wanxiang-base.zip"),
-                    Scheme::Pro(Some(aux)) => format!("rime-wanxiang-{}-fuzhu.zip", aux.code()),
-                    Scheme::Pro(None) => panic!(),
+                == match schema {
+                    Schema::Base => String::from("rime-wanxiang-base.zip"),
+                    Schema::Pro(Some(aux)) => format!("rime-wanxiang-{}-fuzhu.zip", aux.code()),
+                    Schema::Pro(None) => panic!(),
                 }
         })
         .context("Release 中未找到 Asset")
@@ -128,7 +142,7 @@ fn install(file: NamedTempFile, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn cleanup(root: &Path, old: Scheme, new: Scheme) {
+pub fn cleanup(root: &Path, old: Schema, new: Schema) {
     if std::mem::discriminant(&old) != std::mem::discriminant(&new) {
         let old_schema = root.join(format!("{}.schema.yaml", old.schema_id()));
         fs::remove_file(&old_schema)

@@ -6,17 +6,17 @@ use std::{
 };
 use strum::IntoEnumIterator;
 
+use crate::config::Config;
 use crate::grammar::GRAMMAR_NAME;
-use crate::options::{AuxCode, AuxMode, Pinyin, Scheme};
+use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
 use crate::print_err;
 use crate::yaml::Document;
 
 #[derive(Clone)]
 pub struct InstalledSchema {
-    pub scheme: Scheme,
+    pub schema: Schema,
     pub version: String,
-    pub pinyin: Option<Pinyin>,
-    pub aux_mode: Option<AuxMode>,
+    pub config: Config,
 }
 
 impl InstalledSchema {
@@ -26,8 +26,8 @@ impl InstalledSchema {
         let algebra_reference_regex = Regex::new(r"^wanxiang_algebra:/(?:base|pro)/(.+)$").unwrap();
 
         let mut installed = vec![];
-        for scheme in Scheme::iter() {
-            let schema_id = scheme.schema_id();
+        for schema in Schema::iter() {
+            let schema_id = schema.schema_id();
             let path = root.join(format!("{schema_id}.schema.yaml"));
             if !path.exists() {
                 continue;
@@ -113,9 +113,9 @@ impl InstalledSchema {
             };
 
             // Read aux code from meta.lua if it exists
-            let aux = match scheme {
-                Scheme::Base => None,
-                Scheme::Pro(_) => {
+            let aux = match schema {
+                Schema::Base => None,
+                Schema::Pro(_) => {
                     fs::read_to_string(root.join("lua/meta.lua"))
                         .ok()
                         .and_then(|meta| {
@@ -126,16 +126,13 @@ impl InstalledSchema {
                 }
             };
 
-            let scheme = match scheme {
-                Scheme::Base => Scheme::Base,
-                Scheme::Pro(_) => Scheme::Pro(aux),
-            };
-
             installed.push(Self {
-                scheme,
+                schema: match schema {
+                    Schema::Base => Schema::Base,
+                    Schema::Pro(_) => Schema::Pro(aux),
+                },
                 version,
-                pinyin,
-                aux_mode,
+                config: Config { pinyin, aux_mode },
             });
         }
         installed

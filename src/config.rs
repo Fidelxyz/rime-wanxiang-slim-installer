@@ -3,10 +3,79 @@ use colored::Colorize;
 use std::{fs, path::Path};
 use strum::IntoEnumIterator;
 
-use crate::options::{AuxMode, Pinyin, Scheme};
+use crate::options::{AuxMode, Pinyin, Schema};
 use crate::yaml::Document;
 
-fn rewrite(source: &str, group: &str, pinyin: Option<&str>, mode: Option<&str>) -> Result<String> {
+#[derive(Clone, Copy, PartialEq)]
+pub struct Config {
+    pub pinyin: Option<Pinyin>,
+    pub aux_mode: Option<AuxMode>,
+}
+
+pub fn info_apply(config: Config) {
+    println!("{} 将应用方案配置：", "==>".bright_green());
+    if let Some(pinyin) = config.pinyin {
+        println!("  拼音方案：{}", pinyin.to_string().bright_cyan());
+    }
+    if let Some(aux_mode) = config.aux_mode {
+        println!("  辅助码方案：{}", aux_mode.to_string().bright_cyan());
+    }
+}
+
+pub fn warn_apply(root: &Path, schema: Schema) {
+    for schema_id in [schema.schema_id(), "wanxiang_reverse"] {
+        let file = format!("{schema_id}.custom.yaml");
+        let target = root.join(&file);
+        println!(
+            "{}",
+            if target.exists() {
+                format!("将修改配置文件：{}", target.display())
+            } else {
+                format!("将创建配置文件：{}", target.display())
+            }
+            .bright_yellow()
+        );
+    }
+    println!(
+        "{}",
+        format!(
+            "将修改配置文件：{}",
+            root.join(format!("{}.custom.yaml", schema.schema_id()))
+                .display()
+        )
+        .bright_yellow()
+    );
+}
+
+pub fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
+    let mut pending_writes = vec![];
+
+    for (schema_id, group) in [
+        (schema.schema_id(), schema.code()),
+        ("wanxiang_reverse", "reverse"),
+    ] {
+        let file = format!("{schema_id}.custom.yaml");
+        let target = root.join(&file);
+        let source = if target.exists() {
+            target.clone()
+        } else {
+            root.join("custom").join(&file)
+        };
+
+        let text = fs::read_to_string(&source)
+            .with_context(|| format!("无法读取文件 {}", source.display()))?;
+        pending_writes.push((target, rewrite(&text, group, &config)?));
+    }
+
+    for (target, text) in pending_writes {
+        fs::write(target, text)?;
+    }
+
+    println!("{}", "已应用方案配置。".bright_green());
+    Ok(())
+}
+
+fn rewrite(source: &str, group: &str, config: &Config) -> Result<String> {
     let document = Document::read(source.as_bytes())?;
     // YAML spans use character indices; String replacements use byte offsets.
     let byte_offsets: Vec<_> = source
@@ -37,27 +106,27 @@ fn rewrite(source: &str, group: &str, pinyin: Option<&str>, mode: Option<&str>) 
             continue;
         };
 
-        let new = if AuxMode::iter().any(|value| value.to_string() == old) {
-            found_aux_mode = true;
-            mode
-        } else if Pinyin::iter().any(|value| value.to_string() == old) {
+        let new = if Pinyin::iter().any(|value| value.to_string() == old) {
             found_pinyin = true;
-            pinyin
+            config.pinyin.map(|value| value.to_string())
+        } else if AuxMode::iter().any(|value| value.to_string() == old) {
+            found_aux_mode = true;
+            config.aux_mode.map(|value| value.to_string())
         } else {
             None
         };
 
-        if let Some(new) = new.filter(|&value| value != old) {
+        if let Some(new) = new.filter(|value| value != old) {
             let range =
                 byte_offsets[field.span.start.index()]..byte_offsets[field.span.end.index()];
             edits.push((range, format!("{reference_prefix}{new}")));
         }
     }
 
-    if pinyin.is_some() && !found_pinyin {
+    if !found_pinyin {
         bail!("未在自定义文件中找到拼音方案引用，请检查自定义文件是否完整")
     }
-    if mode.is_some() && !found_aux_mode {
+    if config.aux_mode.is_some() && !found_aux_mode {
         bail!("未在自定义文件中找到辅助码方案引用，请检查自定义文件是否完整")
     }
 
@@ -68,49 +137,4 @@ fn rewrite(source: &str, group: &str, pinyin: Option<&str>, mode: Option<&str>) 
         rewritten.replace_range(range, &replacement);
     }
     Ok(rewritten)
-}
-
-pub fn apply(
-    root: &Path,
-    scheme: Scheme,
-    pinyin: Option<Pinyin>,
-    mode: Option<AuxMode>,
-) -> Result<()> {
-    let pinyin = pinyin.map(|value| value.to_string());
-    let mode = mode.map(|value| value.to_string());
-
-    let mut pending_writes = vec![];
-
-    for (schema_id, group, pinyin, mode) in [
-        (
-            scheme.schema_id(),
-            scheme.code(),
-            pinyin.as_deref(),
-            mode.as_deref(),
-        ),
-        ("wanxiang_reverse", "reverse", pinyin.as_deref(), None),
-    ] {
-        if pinyin.is_none() && mode.is_none() {
-            continue;
-        }
-
-        let file = format!("{schema_id}.custom.yaml");
-        let target = root.join(&file);
-        let source = if target.exists() {
-            target.clone()
-        } else {
-            root.join("custom").join(&file)
-        };
-
-        let text = fs::read_to_string(&source)
-            .with_context(|| format!("无法读取文件 {}", source.display()))?;
-        pending_writes.push((target, rewrite(&text, group, pinyin, mode)?));
-    }
-
-    for (target, text) in pending_writes {
-        fs::write(target, text)?;
-    }
-
-    println!("{}", "已应用方案配置。".bright_green());
-    Ok(())
 }

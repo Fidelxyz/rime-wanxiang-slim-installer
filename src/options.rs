@@ -1,7 +1,7 @@
 use strum::{Display, EnumIter, EnumProperty};
 
 #[derive(Clone, Copy, Display, PartialEq, EnumIter, EnumProperty)]
-pub enum Scheme {
+pub enum Schema {
     #[strum(to_string = "基础版 (Base)")]
     #[strum(props(code = "base"))]
     #[strum(props(schema_id = "wanxiang"))]
@@ -12,7 +12,7 @@ pub enum Scheme {
     Pro(Option<AuxCode>),
 }
 
-impl Scheme {
+impl Schema {
     pub fn code(self) -> &'static str {
         self.get_str("code").unwrap()
     }

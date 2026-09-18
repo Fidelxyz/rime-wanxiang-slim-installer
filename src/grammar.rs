@@ -8,8 +8,13 @@ use crate::network::Network;
 
 pub const GRAMMAR_NAME: &str = "wanxiang-lts-zh-hans.gram";
 
-pub async fn get_latest() -> Result<Asset> {
-    octocrab::instance()
+#[derive(Clone, PartialEq)]
+pub struct LatestGrammar {
+    pub asset: Asset,
+}
+
+pub async fn get_latest() -> Result<LatestGrammar> {
+    let asset = octocrab::instance()
         .repos("amzxyz", "RIME-LMDG")
         .releases()
         .get_by_tag("LTS")
@@ -17,14 +22,24 @@ pub async fn get_latest() -> Result<Asset> {
         .assets
         .into_iter()
         .find(|asset| asset.name == GRAMMAR_NAME)
-        .context("Release 中未找到语法模型 Asset")
+        .context("Release 中未找到语法模型 Asset")?;
+    Ok(LatestGrammar { asset })
 }
 
-pub async fn check_update(downloader: &Network, path: &Path, latest: &Asset) -> Result<bool> {
-    downloader.check_update(path, latest).await
+pub async fn check_update(
+    downloader: &Network,
+    path: &Path,
+    latest: &LatestGrammar,
+) -> Result<bool> {
+    downloader.check_update(path, &latest.asset).await
 }
 
-pub fn prompt_install(root: &Path) {
+pub fn info_install() {
+    println!("{} 将安装语法模型：", "==>".bright_green());
+    println!("  语法模型：{}", GRAMMAR_NAME.bright_cyan());
+}
+
+pub fn warn_install(root: &Path) {
     println!(
         "{}",
         format!("将安装语法模型至：{}", root.join(GRAMMAR_NAME).display()).bright_yellow()
@@ -34,9 +49,9 @@ pub fn prompt_install(root: &Path) {
     }
 }
 
-pub async fn update(downloader: &Network, root: &Path, asset: &Asset) -> Result<()> {
+pub async fn update(downloader: &Network, root: &Path, latest: &LatestGrammar) -> Result<()> {
     let downloaded = downloader
-        .download(asset)
+        .download(&latest.asset)
         .await
         .context("语法模型下载失败")?;
     install(downloaded, &root.join(GRAMMAR_NAME)).context("语法模型安装失败")?;
