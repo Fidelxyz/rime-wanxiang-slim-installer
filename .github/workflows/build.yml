@@ -1,11 +1,8 @@
 name: Build
 
 on:
+  workflow_dispatch:
   workflow_call:
-    inputs:
-      ref:
-        required: false
-        type: string
   push:
     branches:
       - '**'
@@ -43,8 +40,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
