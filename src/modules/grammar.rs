@@ -1,11 +1,23 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use octocrab::models::repos::Asset;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 
 use crate::network::Network;
 use crate::workflow::{ApplyFuture, Module};
+
+pub struct InstalledGrammar {
+    pub path: PathBuf,
+}
+
+pub fn detect(root: &Path) -> Option<InstalledGrammar> {
+    let path = root.join(GRAMMAR_NAME);
+    if !path.exists() {
+        return None;
+    }
+    Some(InstalledGrammar { path })
+}
 
 pub struct Install {
     pub latest: LatestGrammar,

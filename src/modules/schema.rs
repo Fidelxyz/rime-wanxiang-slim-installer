@@ -1,16 +1,86 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use octocrab::models::repos::{Asset, Release};
+use regex::Regex;
 use semver::Version;
 use std::{fs, path::Path};
+use strum::IntoEnumIterator;
 use tempfile::NamedTempFile;
 use zip::ZipArchive;
 
-use crate::installed_detector::InstalledSchema;
 use crate::network::Network;
-use crate::options::Schema;
+use crate::options::{AuxCode, Schema};
 use crate::print_err;
 use crate::workflow::{ApplyFuture, Module};
+use crate::yaml::Document;
+
+#[derive(Clone)]
+pub struct InstalledSchema {
+    pub schema: Schema,
+    pub version: String,
+}
+
+pub fn detect(root: &Path) -> Vec<InstalledSchema> {
+    let aux_code_assignment_regex =
+        Regex::new(r#"(?m)^\s*M\.AUX_CODE\s*=\s*["']([^"']+)["']"#).unwrap();
+
+    let mut installed = vec![];
+    for schema in Schema::iter() {
+        let schema_id = schema.schema_id();
+        let path = root.join(format!("{schema_id}.schema.yaml"));
+        if !path.exists() {
+            continue;
+        }
+
+        let schema_document = match Document::open(&path)
+            .with_context(|| format!("无法读取方案文件 {}", path.display()))
+        {
+            Ok(document) => document,
+            Err(e) => {
+                print_err(e);
+                continue;
+            }
+        };
+        let version = match schema_document
+            .required(&["schema", "version"])
+            .and_then(|field| {
+                field
+                    .data
+                    .as_str()
+                    .context("方案版本字段不是字符串")
+                    .map(str::to_owned)
+            })
+            .with_context(|| format!("无法读取方案版本 {}", path.display()))
+        {
+            Ok(version) => version,
+            Err(e) => {
+                print_err(e);
+                continue;
+            }
+        };
+
+        // Read aux code from meta.lua if it exists
+        let aux = match schema {
+            Schema::Base => None,
+            Schema::Pro(_) => fs::read_to_string(root.join("lua/meta.lua"))
+                .ok()
+                .and_then(|meta| {
+                    aux_code_assignment_regex
+                        .captures(&meta)
+                        .and_then(|c| AuxCode::iter().find(|value| value.code() == &c[1]))
+                }),
+        };
+
+        installed.push(InstalledSchema {
+            schema: match schema {
+                Schema::Base => Schema::Base,
+                Schema::Pro(_) => Schema::Pro(aux),
+            },
+            version,
+        });
+    }
+    installed
+}
 
 pub struct Install {
     pub schema: Schema,

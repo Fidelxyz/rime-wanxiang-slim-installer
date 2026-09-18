@@ -1,5 +1,4 @@
 mod digest;
-mod installed_detector;
 mod modules;
 mod network;
 mod options;
@@ -13,10 +12,9 @@ use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
 use strum::{Display, IntoEnumIterator};
 use tokio::join;
 
-use crate::installed_detector::{InstalledGrammar, InstalledSchema};
 use crate::modules::config::Config;
-use crate::modules::grammar::LatestGrammar;
-use crate::modules::schema::LatestSchema;
+use crate::modules::grammar::{InstalledGrammar, LatestGrammar};
+use crate::modules::schema::{InstalledSchema, LatestSchema};
 use crate::modules::{config, grammar, schema};
 use crate::network::Network;
 use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
@@ -26,9 +24,15 @@ pub(crate) fn print_err(e: impl Display) {
     eprintln!("{}", format!("错误：{e:#}").red());
 }
 
-fn resolve_installed(root: &Path) -> Result<(Option<InstalledSchema>, Option<InstalledGrammar>)> {
-    let all_schema = InstalledSchema::detect(root);
-    let grammar = InstalledGrammar::detect(root);
+fn resolve_installed(
+    root: &Path,
+) -> Result<(
+    Option<InstalledSchema>,
+    Option<InstalledGrammar>,
+    Option<Config>,
+)> {
+    let all_schema = schema::detect(root);
+    let grammar = grammar::detect(root);
 
     let current_schema = match all_schema.len().cmp(&1) {
         Ordering::Equal => Some(all_schema[0].clone()),
@@ -44,7 +48,12 @@ fn resolve_installed(root: &Path) -> Result<(Option<InstalledSchema>, Option<Ins
         Ordering::Less => None,
     };
 
-    Ok((current_schema, grammar))
+    let config = current_schema
+        .as_ref()
+        .map(|installed| config::detect(root, installed.schema))
+        .transpose()?;
+
+    Ok((current_schema, grammar, config))
 }
 
 struct LatestInfo {
@@ -273,7 +282,7 @@ async fn run() -> Result<()> {
 
     let latest = get_latest();
     let installed = resolve_installed(&root);
-    let (installed_schema, installed_grammar) = installed?;
+    let (installed_schema, installed_grammar, installed_config) = installed?;
     let latest = latest.await?;
     let mut has_update = HasUpdate::default();
 
@@ -311,7 +320,7 @@ async fn run() -> Result<()> {
 
     let default_options = Options {
         schema: installed_schema.as_ref().map(|installed| installed.schema),
-        config: installed_schema.as_ref().map(|installed| installed.config),
+        config: installed_config,
         ..Default::default()
     };
     let mut workflow = Workflow::default();
@@ -376,9 +385,7 @@ async fn run() -> Result<()> {
             let install_schema = installed_schema
                 .as_ref()
                 .is_none_or(|installed| installed.schema != schema);
-            let apply_config = installed_schema
-                .as_ref()
-                .is_none_or(|installed| installed.config != config);
+            let apply_config = installed_config != Some(config);
             if !install_schema && !apply_config {
                 println!("{}", "输入方案和方案配置无变动。".bright_green());
                 return Ok(());

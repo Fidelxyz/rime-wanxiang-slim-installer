@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
+use regex::Regex;
 use std::{fs, path::Path};
 use strum::IntoEnumIterator;
 
@@ -7,6 +8,13 @@ use crate::network::Network;
 use crate::options::{AuxMode, Pinyin, Schema};
 use crate::workflow::{ApplyFuture, Module};
 use crate::yaml::Document;
+
+const CUSTOM_ALGEBRA_PATHS: &[&[&str]] = &[
+    &["patch", "speller/algebra", "__patch"],
+    &["patch", "speller/algebra", "__include"],
+    &["patch", "speller/algebra/__patch"],
+    &["patch", "speller/algebra/__include"],
+];
 
 pub struct Apply {
     pub schema: Schema,
@@ -34,6 +42,60 @@ impl Module for Apply {
 pub struct Config {
     pub pinyin: Option<Pinyin>,
     pub aux_mode: Option<AuxMode>,
+}
+
+pub fn detect(root: &Path, schema: Schema) -> Result<Config> {
+    let algebra_reference_regex = Regex::new(r"^wanxiang_algebra:/(?:base|pro)/(.+)$").unwrap();
+
+    // Read algebra patches from custom.yaml if it exists
+    let custom_path = root.join(format!("{}.custom.yaml", schema.schema_id()));
+    let mut algebra_patches = if custom_path.exists() {
+        let custom_document = Document::open(&custom_path)
+            .with_context(|| format!("无法读取自定义文件 {}", custom_path.display()))?;
+        CUSTOM_ALGEBRA_PATHS
+            .iter()
+            .flat_map(|path| custom_document.values(path))
+            .filter_map(|field| field.data.as_str())
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    } else {
+        vec![]
+    };
+
+    // Read algebra patches from schema.yaml if not found in custom.yaml
+    if algebra_patches.is_empty() {
+        let schema_path = root.join(format!("{}.schema.yaml", schema.schema_id()));
+        let schema_document = Document::open(&schema_path)
+            .with_context(|| format!("无法读取方案文件 {}", schema_path.display()))?;
+        algebra_patches = schema_document
+            .values(&["speller", "algebra", "__patch"])
+            .into_iter()
+            .filter_map(|field| field.data.as_str())
+            .map(str::to_owned)
+            .collect();
+    }
+
+    // Extract reference names from algebra patches
+    let names: Vec<_> = algebra_patches
+        .iter()
+        .filter_map(|field| {
+            algebra_reference_regex
+                .captures(field)
+                .map(|capture| capture.get(1).unwrap().as_str())
+        })
+        .collect();
+
+    // Determine pinyin and aux mode based on the extracted names
+    let pinyin = Pinyin::iter().find(|value| names.contains(&value.to_string().as_str()));
+    let aux_mode = if names.contains(&"间接辅助") {
+        Some(AuxMode::Indirect)
+    } else if names.contains(&"直接辅助") {
+        Some(AuxMode::Direct)
+    } else {
+        None
+    };
+
+    Ok(Config { pinyin, aux_mode })
 }
 
 fn info_apply(config: Config) {
@@ -74,9 +136,16 @@ fn warn_apply(root: &Path, schema: Schema) {
 fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
     let mut pending_writes = vec![];
 
-    for (schema_id, group) in [
-        (schema.schema_id(), schema.code()),
-        ("wanxiang_reverse", "reverse"),
+    for (schema_id, group, config) in [
+        (schema.schema_id(), schema.code(), config),
+        (
+            "wanxiang_reverse",
+            "reverse",
+            Config {
+                aux_mode: None,
+                ..config
+            },
+        ),
     ] {
         let file = format!("{schema_id}.custom.yaml");
         let target = root.join(&file);
@@ -113,14 +182,9 @@ fn rewrite(source: &str, group: &str, config: Config) -> Result<String> {
     let mut found_aux_mode = false;
     let mut edits = vec![];
 
-    for field in [
-        ["patch", "speller/algebra", "__patch"].as_slice(),
-        ["patch", "speller/algebra", "__include"].as_slice(),
-        ["patch", "speller/algebra/__patch"].as_slice(),
-        ["patch", "speller/algebra/__include"].as_slice(),
-    ]
-    .into_iter()
-    .flat_map(|path| document.values(path))
+    for field in CUSTOM_ALGEBRA_PATHS
+        .iter()
+        .flat_map(|path| document.values(path))
     {
         let Some(old) = field
             .data
