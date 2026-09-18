@@ -4,7 +4,6 @@ use octocrab::models::repos::{Asset, Release};
 use semver::Version;
 use std::{fs, path::Path};
 use tempfile::NamedTempFile;
-use walkdir::WalkDir;
 use zip::ZipArchive;
 
 use crate::installed_detector::InstalledSchema;
@@ -122,7 +121,7 @@ fn asset(schema: Schema, latest: LatestSchema) -> Result<Asset> {
 }
 
 fn install(file: NamedTempFile, path: &Path) -> Result<()> {
-    let temp = tempfile::tempdir()?;
+    let temp = tempfile::tempdir_in(file.path().parent().unwrap())?;
     let mut archive = ZipArchive::new(file)?;
     archive.extract(&temp)?;
 
@@ -132,39 +131,11 @@ fn install(file: NamedTempFile, path: &Path) -> Result<()> {
         let src = entry.path();
         let dst = path.join(entry.file_name());
 
-        if file_type.is_dir() {
-            if dst.exists() {
-                fs::remove_dir_all(&dst)
-                    .with_context(|| format!("无法删除目录 {}", dst.display()))?;
-            }
-            fs::rename(&src, &dst).or_else(|_| -> Result<_> {
-                for entry in WalkDir::new(&src) {
-                    let entry = entry?;
-                    let entry_src = entry.path();
-                    let entry_dst = dst.join(entry_src.strip_prefix(&src).unwrap());
-                    if entry.file_type().is_dir() {
-                        fs::create_dir_all(&entry_dst)
-                            .with_context(|| format!("无法创建目录 {}", entry_dst.display()))?;
-                    } else {
-                        fs::copy(entry_src, &entry_dst).with_context(|| {
-                            format!(
-                                "无法复制文件 {} 至 {}",
-                                entry_src.display(),
-                                entry_dst.display()
-                            )
-                        })?;
-                    }
-                }
-                Ok(())
-            })?;
-        } else if file_type.is_file() {
-            fs::rename(&src, &dst)
-                .or_else(|_| -> Result<_> {
-                    fs::copy(&src, &dst)?;
-                    Ok(())
-                })
-                .with_context(|| format!("无法复制文件 {} 至 {}", src.display(), dst.display()))?;
+        if file_type.is_dir() && dst.exists() {
+            fs::remove_dir_all(&dst).with_context(|| format!("无法删除目录 {}", dst.display()))?;
         }
+        fs::rename(&src, &dst)
+            .with_context(|| format!("无法移动 {} 至 {}", src.display(), dst.display()))?;
     }
 
     println!("{}", "输入方案安装完成。".bright_green());

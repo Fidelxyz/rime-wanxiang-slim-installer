@@ -13,6 +13,8 @@ use tempfile::NamedTempFile;
 
 use crate::digest;
 
+const INSTALLER_DIR: &str = "./installer";
+
 pub struct Network {
     client: Client,
 }
@@ -46,7 +48,8 @@ impl Network {
     }
 
     pub async fn download(&self, asset: &Asset) -> Result<NamedTempFile> {
-        let mut tempfile = NamedTempFile::new()?;
+        fs::create_dir_all(INSTALLER_DIR)?;
+        let mut tempfile = NamedTempFile::new_in(INSTALLER_DIR)?;
 
         println!("下载 {}", asset.name);
 
