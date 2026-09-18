@@ -62,7 +62,7 @@ jobs:
         run: |
           mv "rime-wanxiang-slim-installer${{ runner.os == 'Windows' && '.exe' || '' }}" "${BINARY_NAME}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rime-wanxiang-slim-installer-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}
