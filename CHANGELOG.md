@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.0.0...v1.0.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* fix inconsistent schema name ([74b6697](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/74b6697ec4223dd32b68df40634ab30fb07272a0))
+
 ## 1.0.0 (2026-09-18)
 
 
