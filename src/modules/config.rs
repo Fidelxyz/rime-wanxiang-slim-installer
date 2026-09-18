@@ -3,8 +3,32 @@ use colored::Colorize;
 use std::{fs, path::Path};
 use strum::IntoEnumIterator;
 
+use crate::network::Network;
 use crate::options::{AuxMode, Pinyin, Schema};
+use crate::workflow::{ApplyFuture, Module};
 use crate::yaml::Document;
+
+pub struct Apply {
+    pub schema: Schema,
+    pub config: Config,
+}
+
+impl Module for Apply {
+    fn info(&self) {
+        info_apply(self.config);
+    }
+
+    fn warn(&self, root: &Path) -> Result<()> {
+        warn_apply(root, self.schema);
+        Ok(())
+    }
+
+    fn apply<'a>(self: Box<Self>, _downloader: &'a Network, root: &'a Path) -> ApplyFuture<'a> {
+        Box::pin(async move {
+            apply(root, self.schema, self.config).context("应用方案配置失败")
+        })
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct Config {
@@ -12,7 +36,7 @@ pub struct Config {
     pub aux_mode: Option<AuxMode>,
 }
 
-pub fn info_apply(config: Config) {
+fn info_apply(config: Config) {
     println!("{} 将应用方案配置：", "==>".bright_green());
     if let Some(pinyin) = config.pinyin {
         println!("  拼音方案：{}", pinyin.to_string().bright_cyan());
@@ -22,7 +46,7 @@ pub fn info_apply(config: Config) {
     }
 }
 
-pub fn warn_apply(root: &Path, schema: Schema) {
+fn warn_apply(root: &Path, schema: Schema) {
     for schema_id in [schema.schema_id(), "wanxiang_reverse"] {
         let file = format!("{schema_id}.custom.yaml");
         let target = root.join(&file);
@@ -47,7 +71,7 @@ pub fn warn_apply(root: &Path, schema: Schema) {
     );
 }
 
-pub fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
+fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
     let mut pending_writes = vec![];
 
     for (schema_id, group) in [
@@ -64,7 +88,7 @@ pub fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
 
         let text = fs::read_to_string(&source)
             .with_context(|| format!("无法读取文件 {}", source.display()))?;
-        pending_writes.push((target, rewrite(&text, group, &config)?));
+        pending_writes.push((target, rewrite(&text, group, config)?));
     }
 
     for (target, text) in pending_writes {
@@ -75,7 +99,7 @@ pub fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
     Ok(())
 }
 
-fn rewrite(source: &str, group: &str, config: &Config) -> Result<String> {
+fn rewrite(source: &str, group: &str, config: Config) -> Result<String> {
     let document = Document::read(source.as_bytes())?;
     // YAML spans use character indices; String replacements use byte offsets.
     let byte_offsets: Vec<_> = source

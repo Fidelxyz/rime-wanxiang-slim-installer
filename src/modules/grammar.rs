@@ -5,6 +5,30 @@ use std::path::Path;
 use tempfile::NamedTempFile;
 
 use crate::network::Network;
+use crate::workflow::{ApplyFuture, Module};
+
+pub struct Install {
+    pub latest: LatestGrammar,
+}
+
+impl Module for Install {
+    fn info(&self) {
+        info_install();
+    }
+
+    fn warn(&self, root: &Path) -> Result<()> {
+        warn_install(root);
+        Ok(())
+    }
+
+    fn apply<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> ApplyFuture<'a> {
+        Box::pin(async move {
+            update(downloader, root, &self.latest)
+                .await
+                .context("更新语法模型失败")
+        })
+    }
+}
 
 pub const GRAMMAR_NAME: &str = "wanxiang-lts-zh-hans.gram";
 
@@ -34,12 +58,12 @@ pub async fn check_update(
     downloader.check_update(path, &latest.asset).await
 }
 
-pub fn info_install() {
+fn info_install() {
     println!("{} 将安装语法模型：", "==>".bright_green());
     println!("  语法模型：{}", GRAMMAR_NAME.bright_cyan());
 }
 
-pub fn warn_install(root: &Path) {
+fn warn_install(root: &Path) {
     println!(
         "{}",
         format!("将安装语法模型至：{}", root.join(GRAMMAR_NAME).display()).bright_yellow()
@@ -49,7 +73,7 @@ pub fn warn_install(root: &Path) {
     }
 }
 
-pub async fn update(downloader: &Network, root: &Path, latest: &LatestGrammar) -> Result<()> {
+async fn update(downloader: &Network, root: &Path, latest: &LatestGrammar) -> Result<()> {
     let downloaded = downloader
         .download(&latest.asset)
         .await

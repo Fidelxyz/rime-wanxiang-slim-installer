@@ -6,8 +6,8 @@ use std::{
 };
 use strum::IntoEnumIterator;
 
-use crate::config::Config;
-use crate::grammar::GRAMMAR_NAME;
+use crate::modules::config::Config;
+use crate::modules::grammar::GRAMMAR_NAME;
 use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
 use crate::print_err;
 use crate::yaml::Document;

@@ -11,6 +11,35 @@ use crate::installed_detector::InstalledSchema;
 use crate::network::Network;
 use crate::options::Schema;
 use crate::print_err;
+use crate::workflow::{ApplyFuture, Module};
+
+pub struct Install {
+    pub schema: Schema,
+    pub latest: LatestSchema,
+    pub previous: Option<Schema>,
+}
+
+impl Module for Install {
+    fn info(&self) {
+        info_install(self.schema);
+    }
+
+    fn warn(&self, root: &Path) -> Result<()> {
+        warn_install(root)
+    }
+
+    fn apply<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> ApplyFuture<'a> {
+        Box::pin(async move {
+            update(downloader, root, self.schema, self.latest)
+                .await
+                .context("更新输入方案失败")?;
+            if let Some(previous) = self.previous {
+                cleanup(root, previous, self.schema);
+            }
+            Ok(())
+        })
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub struct LatestSchema {
@@ -42,7 +71,7 @@ pub fn check_update(installed: &InstalledSchema, latest: &LatestSchema) -> Resul
     Ok(latest_version > installed_version)
 }
 
-pub fn info_install(schema: Schema) {
+fn info_install(schema: Schema) {
     println!("{} 将安装输入方案：", "==>".bright_green());
     println!("  方案：{}", schema.to_string().bright_cyan());
     if let Schema::Pro(aux) = schema {
@@ -50,7 +79,7 @@ pub fn info_install(schema: Schema) {
     }
 }
 
-pub fn warn_install(root: &Path) -> Result<()> {
+fn warn_install(root: &Path) -> Result<()> {
     println!(
         "{}",
         format!("将安装输入方案至目录：{}", root.display()).bright_yellow()
@@ -61,7 +90,7 @@ pub fn warn_install(root: &Path) -> Result<()> {
     Ok(())
 }
 
-pub async fn update(
+async fn update(
     downloader: &Network,
     root: &Path,
     schema: Schema,
@@ -142,7 +171,7 @@ fn install(file: NamedTempFile, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn cleanup(root: &Path, old: Schema, new: Schema) {
+fn cleanup(root: &Path, old: Schema, new: Schema) {
     if std::mem::discriminant(&old) != std::mem::discriminant(&new) {
         let old_schema = root.join(format!("{}.schema.yaml", old.schema_id()));
         fs::remove_file(&old_schema)
