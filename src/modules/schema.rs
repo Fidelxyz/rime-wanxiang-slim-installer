@@ -21,17 +21,35 @@ pub struct InstalledSchema {
 }
 
 pub fn detect(root: &Path) -> Vec<InstalledSchema> {
+    let default_path = root.join("default.yaml");
+    if !default_path.exists() {
+        return vec![];
+    }
+    let default_document = match Document::open(&default_path)
+        .with_context(|| format!("无法读取配置文件 {}", default_path.display()))
+    {
+        Ok(document) => document,
+        Err(e) => {
+            print_err(e);
+            return vec![];
+        }
+    };
+    let schema_list = default_document.values(&["schema_list", "schema"]);
+
     let aux_code_assignment_regex =
         Regex::new(r#"(?m)^\s*M\.AUX_CODE\s*=\s*["']([^"']+)["']"#).unwrap();
 
     let mut installed = vec![];
     for schema in Schema::iter() {
         let schema_id = schema.schema_id();
-        let path = root.join(format!("{schema_id}.schema.yaml"));
-        if !path.exists() {
+        if !schema_list
+            .iter()
+            .any(|field| field.data.as_str() == Some(schema_id))
+        {
             continue;
         }
 
+        let path = root.join(format!("{schema_id}.schema.yaml"));
         let schema_document = match Document::open(&path)
             .with_context(|| format!("无法读取方案文件 {}", path.display()))
         {
