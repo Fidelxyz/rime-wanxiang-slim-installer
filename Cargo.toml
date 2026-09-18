@@ -29,7 +29,7 @@ codegen-units = 1
 lto = "fat"
 opt-level = 3
 panic = "abort"
-strip = true
+strip = "debuginfo"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
