@@ -12,10 +12,10 @@ use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
 use strum::{Display, IntoEnumIterator};
 use tokio::join;
 
-use crate::modules::config::Config;
+use crate::modules::custom::Custom;
 use crate::modules::grammar::{InstalledGrammar, LatestGrammar};
 use crate::modules::schema::{InstalledSchema, LatestSchema};
-use crate::modules::{config, grammar, schema};
+use crate::modules::{custom, grammar, schema};
 use crate::network::Network;
 use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
 use crate::workflow::Workflow;
@@ -29,7 +29,7 @@ fn resolve_installed(
 ) -> Result<(
     Option<InstalledSchema>,
     Option<InstalledGrammar>,
-    Option<Config>,
+    Option<Custom>,
 )> {
     let all_schema = schema::detect(root);
     let grammar = grammar::detect(root);
@@ -48,12 +48,12 @@ fn resolve_installed(
         Ordering::Less => None,
     };
 
-    let config = current_schema
+    let custom = current_schema
         .as_ref()
-        .map(|installed| config::detect(root, installed.schema))
+        .map(|installed| custom::detect(root, installed.schema))
         .transpose()?;
 
-    Ok((current_schema, grammar, config))
+    Ok((current_schema, grammar, custom))
 }
 
 struct LatestInfo {
@@ -161,14 +161,14 @@ where
 #[derive(Default)]
 struct Options {
     schema: Option<Schema>,
-    config: Option<Config>,
+    custom: Option<Custom>,
     with_grammar: Option<bool>,
 }
 
 #[derive(Clone, Copy, Default)]
 struct Required {
     schema: bool,
-    config: bool,
+    custom: bool,
     with_grammar: bool,
 }
 
@@ -187,8 +187,8 @@ fn prompt_options(required: Required, default: &Options, always_ask: bool) -> Re
         None
     };
 
-    let pinyin = if required.config {
-        let default = default.config.as_ref().and_then(|config| config.pinyin);
+    let pinyin = if required.custom {
+        let default = default.custom.as_ref().and_then(|custom| custom.pinyin);
         select("选择拼音方案", Pinyin::iter().collect(), default.as_ref())?.into()
     } else {
         None
@@ -202,9 +202,9 @@ fn prompt_options(required: Required, default: &Options, always_ask: bool) -> Re
 
     let aux_mode = if matches!(schema, Some(Schema::Pro(_))) {
         match default
-            .config
+            .custom
             .as_ref()
-            .and_then(|config| config.aux_mode)
+            .and_then(|custom| custom.aux_mode)
             .filter(|_| !always_ask)
         {
             Some(aux_mode) => aux_mode,
@@ -212,9 +212,9 @@ fn prompt_options(required: Required, default: &Options, always_ask: bool) -> Re
                 "选择辅助码引导模式",
                 AuxMode::iter().collect(),
                 default
-                    .config
+                    .custom
                     .as_ref()
-                    .and_then(|config| config.aux_mode)
+                    .and_then(|custom| custom.aux_mode)
                     .as_ref(),
             )?,
         }
@@ -234,8 +234,8 @@ fn prompt_options(required: Required, default: &Options, always_ask: bool) -> Re
 
     Ok(Options {
         schema,
-        config: if required.config {
-            Some(Config { pinyin, aux_mode })
+        custom: if required.custom {
+            Some(Custom { pinyin, aux_mode })
         } else {
             None
         },
@@ -282,7 +282,7 @@ async fn run() -> Result<()> {
 
     let latest = get_latest();
     let installed = resolve_installed(&root);
-    let (installed_schema, installed_grammar, installed_config) = installed?;
+    let (installed_schema, installed_grammar, installed_custom) = installed?;
     let latest = latest.await?;
     let mut has_update = HasUpdate::default();
 
@@ -320,7 +320,7 @@ async fn run() -> Result<()> {
 
     let default_options = Options {
         schema: installed_schema.as_ref().map(|installed| installed.schema),
-        config: installed_config,
+        custom: installed_custom,
         ..Default::default()
     };
     let mut workflow = Workflow::default();
@@ -328,15 +328,15 @@ async fn run() -> Result<()> {
         Action::Install => {
             let latest_schema = latest.schema.context("无法获取最新输入方案")?;
 
-            let (schema, config, with_grammar) =
-                prompt_options!(&default_options, true; schema, config, with_grammar)?;
+            let (schema, custom, with_grammar) =
+                prompt_options!(&default_options, true; schema, custom, with_grammar)?;
 
             workflow.register(schema::Install {
                 schema,
                 latest: latest_schema,
                 previous: None,
             });
-            workflow.register(config::Apply { schema, config });
+            workflow.register(custom::Apply { schema, custom });
             if with_grammar {
                 workflow.register(grammar::Install {
                     latest: latest.grammar.context("无法获取最新语法模型")?,
@@ -380,13 +380,13 @@ async fn run() -> Result<()> {
         }
 
         Action::SwitchSchema => {
-            let (schema, config) = prompt_options!(&default_options, true; schema, config)?;
+            let (schema, custom) = prompt_options!(&default_options, true; schema, custom)?;
 
             let install_schema = installed_schema
                 .as_ref()
                 .is_none_or(|installed| installed.schema != schema);
-            let apply_config = installed_config != Some(config);
-            if !install_schema && !apply_config {
+            let apply_custom = installed_custom != Some(custom);
+            if !install_schema && !apply_custom {
                 println!("{}", "输入方案和方案配置无变动。".bright_green());
                 return Ok(());
             }
@@ -398,8 +398,8 @@ async fn run() -> Result<()> {
                     previous: installed_schema.as_ref().map(|installed| installed.schema),
                 });
             }
-            if apply_config {
-                workflow.register(config::Apply { schema, config });
+            if apply_custom {
+                workflow.register(custom::Apply { schema, custom });
             }
         }
 

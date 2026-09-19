@@ -1,3 +1,3 @@
-pub mod config;
+pub mod custom;
 pub mod grammar;
 pub mod schema;

@@ -18,12 +18,12 @@ const CUSTOM_ALGEBRA_PATHS: &[&[&str]] = &[
 
 pub struct Apply {
     pub schema: Schema,
-    pub config: Config,
+    pub custom: Custom,
 }
 
 impl Module for Apply {
     fn info(&self) {
-        info_apply(self.config);
+        info_apply(self.custom);
     }
 
     fn warn(&self, root: &Path) -> Result<()> {
@@ -33,18 +33,18 @@ impl Module for Apply {
 
     fn apply<'a>(self: Box<Self>, _downloader: &'a Network, root: &'a Path) -> ApplyFuture<'a> {
         Box::pin(async move {
-            apply(root, self.schema, self.config).context("应用方案配置失败")
+            apply(root, self.schema, self.custom).context("应用方案配置失败")
         })
     }
 }
 
 #[derive(Clone, Copy, PartialEq)]
-pub struct Config {
+pub struct Custom {
     pub pinyin: Option<Pinyin>,
     pub aux_mode: Option<AuxMode>,
 }
 
-pub fn detect(root: &Path, schema: Schema) -> Result<Config> {
+pub fn detect(root: &Path, schema: Schema) -> Result<Custom> {
     let algebra_reference_regex = Regex::new(r"^wanxiang_algebra:/(?:base|pro)/(.+)$").unwrap();
 
     // Read algebra patches from custom.yaml if it exists
@@ -95,15 +95,15 @@ pub fn detect(root: &Path, schema: Schema) -> Result<Config> {
         None
     };
 
-    Ok(Config { pinyin, aux_mode })
+    Ok(Custom { pinyin, aux_mode })
 }
 
-fn info_apply(config: Config) {
+fn info_apply(custom: Custom) {
     println!("{} 将应用方案配置：", "==>".bright_green());
-    if let Some(pinyin) = config.pinyin {
+    if let Some(pinyin) = custom.pinyin {
         println!("  拼音方案：{}", pinyin.to_string().bright_cyan());
     }
-    if let Some(aux_mode) = config.aux_mode {
+    if let Some(aux_mode) = custom.aux_mode {
         println!("  辅助码方案：{}", aux_mode.to_string().bright_cyan());
     }
 }
@@ -133,17 +133,17 @@ fn warn_apply(root: &Path, schema: Schema) {
     );
 }
 
-fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
+fn apply(root: &Path, schema: Schema, custom: Custom) -> Result<()> {
     let mut pending_writes = vec![];
 
-    for (schema_id, group, config) in [
-        (schema.schema_id(), schema.code(), config),
+    for (schema_id, group, custom) in [
+        (schema.schema_id(), schema.code(), custom),
         (
             "wanxiang_reverse",
             "reverse",
-            Config {
+            Custom {
                 aux_mode: None,
-                ..config
+                ..custom
             },
         ),
     ] {
@@ -157,7 +157,7 @@ fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
 
         let text = fs::read_to_string(&source)
             .with_context(|| format!("无法读取文件 {}", source.display()))?;
-        pending_writes.push((target, rewrite(&text, group, config)?));
+        pending_writes.push((target, rewrite(&text, group, custom)?));
     }
 
     for (target, text) in pending_writes {
@@ -168,7 +168,7 @@ fn apply(root: &Path, schema: Schema, config: Config) -> Result<()> {
     Ok(())
 }
 
-fn rewrite(source: &str, group: &str, config: Config) -> Result<String> {
+fn rewrite(source: &str, group: &str, custom: Custom) -> Result<String> {
     let document = Document::read(source.as_bytes())?;
     // YAML spans use character indices; String replacements use byte offsets.
     let byte_offsets: Vec<_> = source
@@ -196,10 +196,10 @@ fn rewrite(source: &str, group: &str, config: Config) -> Result<String> {
 
         let new = if Pinyin::iter().any(|value| value.to_string() == old) {
             found_pinyin = true;
-            config.pinyin.map(|value| value.to_string())
+            custom.pinyin.map(|value| value.to_string())
         } else if AuxMode::iter().any(|value| value.to_string() == old) {
             found_aux_mode = true;
-            config.aux_mode.map(|value| value.to_string())
+            custom.aux_mode.map(|value| value.to_string())
         } else {
             None
         };
@@ -214,7 +214,7 @@ fn rewrite(source: &str, group: &str, config: Config) -> Result<String> {
     if !found_pinyin {
         bail!("未在自定义文件中找到拼音方案引用，请检查自定义文件是否完整")
     }
-    if config.aux_mode.is_some() && !found_aux_mode {
+    if custom.aux_mode.is_some() && !found_aux_mode {
         bail!("未在自定义文件中找到辅助码方案引用，请检查自定义文件是否完整")
     }
 
