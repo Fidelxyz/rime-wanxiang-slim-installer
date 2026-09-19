@@ -152,9 +152,19 @@ pub async fn get_latest(prerelease: bool) -> Result<LatestSchema> {
     Ok(LatestSchema { release })
 }
 
-pub fn check_update(installed: &InstalledSchema, latest: &LatestSchema) -> Result<bool> {
+pub fn check_update(
+    installed: &InstalledSchema,
+    latest: &LatestSchema,
+    prerelease: bool,
+) -> Result<bool> {
     let installed_version = Version::parse(&installed.version)?;
     let latest_version = Version::parse(latest.release.tag_name.trim_start_matches('v'))?;
+
+    // Report update available if the installed version is a prerelease while the user wants stable
+    // releases only
+    if !prerelease && !installed_version.pre.is_empty() {
+        return Ok(true);
+    }
     Ok(latest_version > installed_version)
 }
 
@@ -185,7 +195,7 @@ async fn update(
 ) -> Result<()> {
     let asset = asset(schema, latest)?;
     let downloaded = downloader
-        .download(&asset)
+        .download(root, &asset)
         .await
         .context("输入方案下载失败")?;
     install(downloaded, root).context("输入方案安装失败")?;

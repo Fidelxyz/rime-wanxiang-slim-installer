@@ -87,7 +87,7 @@ fn warn_install(root: &Path) {
 
 async fn update(downloader: &Network, root: &Path, latest: &LatestGrammar) -> Result<()> {
     let downloaded = downloader
-        .download(&latest.asset)
+        .download(root, &latest.asset)
         .await
         .context("语法模型下载失败")?;
     install(downloaded, &root.join(GRAMMAR_NAME)).context("语法模型安装失败")?;

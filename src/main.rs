@@ -1,3 +1,4 @@
+mod config;
 mod digest;
 mod modules;
 mod network;
@@ -12,13 +13,17 @@ use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
 use strum::{Display, IntoEnumIterator};
 use tokio::join;
 
-use crate::modules::custom::Custom;
-use crate::modules::grammar::{InstalledGrammar, LatestGrammar};
-use crate::modules::schema::{InstalledSchema, LatestSchema};
-use crate::modules::{custom, grammar, schema};
+use crate::config::Config;
+use crate::modules::{
+    custom::{self, Custom},
+    grammar::{self, InstalledGrammar, LatestGrammar},
+    schema::{self, InstalledSchema, LatestSchema},
+};
 use crate::network::Network;
 use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
 use crate::workflow::Workflow;
+
+pub(crate) const INSTALLER_DIR: &str = ".installer";
 
 pub(crate) fn print_err(e: impl Display) {
     eprintln!("{}", format!("错误：{e:#}").red());
@@ -61,8 +66,8 @@ struct LatestInfo {
     grammar: Option<LatestGrammar>,
 }
 
-async fn get_latest() -> Result<LatestInfo> {
-    let schema = schema::get_latest(false); // TODO: prerelease option
+async fn get_latest(prerelease: bool) -> Result<LatestInfo> {
+    let schema = schema::get_latest(prerelease);
     let grammar = grammar::get_latest();
     let (schema, grammar) = join!(schema, grammar);
 
@@ -88,9 +93,10 @@ async fn check_update(
     schema: &InstalledSchema,
     grammar: Option<&InstalledGrammar>,
     latest: &LatestInfo,
+    prerelease: bool,
 ) -> HasUpdate {
     let schema_has_update = latest.schema.as_ref().is_some_and(|latest| {
-        schema::check_update(schema, latest)
+        schema::check_update(schema, latest, prerelease)
             .context("检查输入方案更新失败")
             .inspect(|&has_update| {
                 println!(
@@ -272,147 +278,176 @@ enum Action {
     ForceUpdateGrammar,
     #[strum(to_string = "切换方案")]
     SwitchSchema,
+    #[strum(to_string = "开启接收预发布版本更新")]
+    EnablePrerelease,
+    #[strum(to_string = "关闭接收预发布版本更新")]
+    DisablePrerelease,
     #[strum(to_string = "退出")]
     Exit,
 }
 
 async fn run() -> Result<()> {
     let root = std::env::current_dir()?;
+    let mut config = Config::load(&root).context("无法加载配置文件")?;
     let downloader = Network::new()?;
 
-    let latest = get_latest();
     let installed = resolve_installed(&root);
     let (installed_schema, installed_grammar, installed_custom) = installed?;
-    let latest = latest.await?;
-    let mut has_update = HasUpdate::default();
+    loop {
+        let latest = get_latest(config.prerelease).await?;
+        let mut has_update = HasUpdate::default();
 
-    let action = match &installed_schema {
-        None => Action::Install,
-        Some(installed_schema) => {
-            has_update = check_update(
-                &downloader,
-                installed_schema,
-                installed_grammar.as_ref(),
-                &latest,
-            )
-            .await;
+        let action = match &installed_schema {
+            None => Action::Install,
+            Some(installed_schema) => {
+                has_update = check_update(
+                    &downloader,
+                    installed_schema,
+                    installed_grammar.as_ref(),
+                    &latest,
+                    config.prerelease,
+                )
+                .await;
 
-            Select::new("选择操作", {
-                vec![
-                    Action::UpdateAll,
-                    if has_update.schema {
-                        Action::UpdateSchema
-                    } else {
-                        Action::ForceUpdateSchema
-                    },
-                    match (installed_grammar, has_update.grammar) {
-                        (None, _) => Action::InstallGrammar,
-                        (Some(_), true) => Action::UpdateGrammar,
-                        (Some(_), false) => Action::ForceUpdateGrammar,
-                    },
-                    Action::SwitchSchema,
-                    Action::Exit,
-                ]
-            })
-            .prompt()?
-        }
-    };
-
-    let default_options = Options {
-        schema: installed_schema.as_ref().map(|installed| installed.schema),
-        custom: installed_custom,
-        ..Default::default()
-    };
-    let mut workflow = Workflow::default();
-    match action {
-        Action::Install => {
-            let latest_schema = latest.schema.context("无法获取最新输入方案")?;
-
-            let (schema, custom, with_grammar) =
-                prompt_options!(&default_options, true; schema, custom, with_grammar)?;
-
-            workflow.register(schema::Install {
-                schema,
-                latest: latest_schema,
-                previous: None,
-            });
-            workflow.register(custom::Apply { schema, custom });
-            if with_grammar {
-                workflow.register(grammar::Install {
-                    latest: latest.grammar.context("无法获取最新语法模型")?,
-                });
+                Select::new("选择操作", {
+                    vec![
+                        Action::UpdateAll,
+                        if has_update.schema {
+                            Action::UpdateSchema
+                        } else {
+                            Action::ForceUpdateSchema
+                        },
+                        match (installed_grammar.as_ref(), has_update.grammar) {
+                            (None, _) => Action::InstallGrammar,
+                            (Some(_), true) => Action::UpdateGrammar,
+                            (Some(_), false) => Action::ForceUpdateGrammar,
+                        },
+                        Action::SwitchSchema,
+                        if config.prerelease {
+                            Action::DisablePrerelease
+                        } else {
+                            Action::EnablePrerelease
+                        },
+                        Action::Exit,
+                    ]
+                })
+                .prompt()?
             }
-        }
+        };
 
-        Action::UpdateAll => {
-            if !has_update.schema && !has_update.grammar {
-                println!(
-                    "{}",
-                    "输入方案和语法模型均已是最新，无需更新。".bright_green()
-                );
-                return Ok(());
-            }
+        let default_options = Options {
+            schema: installed_schema.as_ref().map(|installed| installed.schema),
+            custom: installed_custom,
+            ..Default::default()
+        };
+        let mut workflow = Workflow::default();
+        match action {
+            Action::Install => {
+                let latest_schema = latest.schema.context("无法获取最新输入方案")?;
 
-            if has_update.schema {
-                let (schema,) = prompt_options!(&default_options, false; schema)?;
+                let (schema, custom, with_grammar) =
+                    prompt_options!(&default_options, true; schema, custom, with_grammar)?;
+
                 workflow.register(schema::Install {
                     schema,
-                    latest: latest.schema.context("无法获取最新输入方案")?,
+                    latest: latest_schema,
+                    previous: None,
+                });
+                workflow.register(custom::Apply { schema, custom });
+                if with_grammar {
+                    workflow.register(grammar::Install {
+                        latest: latest.grammar.context("无法获取最新语法模型")?,
+                    });
+                }
+            }
+
+            Action::UpdateAll => {
+                if !has_update.schema && !has_update.grammar {
+                    println!(
+                        "{}",
+                        "输入方案和语法模型均已是最新，无需更新。".bright_green()
+                    );
+                    return Ok(());
+                }
+
+                if has_update.schema {
+                    let (schema,) = prompt_options!(&default_options, false; schema)?;
+                    workflow.register(schema::Install {
+                        schema,
+                        latest: latest.schema.context("无法获取最新输入方案")?,
+                        previous: None,
+                    });
+                }
+                if has_update.grammar {
+                    workflow.register(grammar::Install {
+                        latest: latest.grammar.context("无法获取最新语法模型")?,
+                    });
+                }
+            }
+
+            Action::UpdateSchema | Action::ForceUpdateSchema => {
+                let latest_schema = latest.schema.context("无法获取最新输入方案")?;
+                let (schema,) = prompt_options!(&default_options, false; schema)?;
+
+                workflow.register(schema::Install {
+                    schema,
+                    latest: latest_schema,
                     previous: None,
                 });
             }
-            if has_update.grammar {
+
+            Action::InstallGrammar | Action::UpdateGrammar | Action::ForceUpdateGrammar => {
                 workflow.register(grammar::Install {
                     latest: latest.grammar.context("无法获取最新语法模型")?,
                 });
             }
-        }
 
-        Action::UpdateSchema | Action::ForceUpdateSchema => {
-            let latest_schema = latest.schema.context("无法获取最新输入方案")?;
-            let (schema,) = prompt_options!(&default_options, false; schema)?;
+            Action::SwitchSchema => {
+                let (schema, custom) = prompt_options!(&default_options, true; schema, custom)?;
 
-            workflow.register(schema::Install {
-                schema,
-                latest: latest_schema,
-                previous: None,
-            });
-        }
+                let install_schema = installed_schema
+                    .as_ref()
+                    .is_none_or(|installed| installed.schema != schema);
+                let apply_custom = installed_custom != Some(custom);
+                if !install_schema && !apply_custom {
+                    println!("{}", "输入方案和方案配置无变动。".bright_green());
+                    return Ok(());
+                }
 
-        Action::SwitchSchema => {
-            let (schema, custom) = prompt_options!(&default_options, true; schema, custom)?;
-
-            let install_schema = installed_schema
-                .as_ref()
-                .is_none_or(|installed| installed.schema != schema);
-            let apply_custom = installed_custom != Some(custom);
-            if !install_schema && !apply_custom {
-                println!("{}", "输入方案和方案配置无变动。".bright_green());
-                return Ok(());
+                if install_schema {
+                    workflow.register(schema::Install {
+                        schema,
+                        latest: latest.schema.context("无法获取最新输入方案")?,
+                        previous: installed_schema.as_ref().map(|installed| installed.schema),
+                    });
+                }
+                if apply_custom {
+                    workflow.register(custom::Apply { schema, custom });
+                }
             }
 
-            if install_schema {
-                workflow.register(schema::Install {
-                    schema,
-                    latest: latest.schema.context("无法获取最新输入方案")?,
-                    previous: installed_schema.as_ref().map(|installed| installed.schema),
-                });
+            Action::EnablePrerelease | Action::DisablePrerelease => {
+                config.prerelease = action == Action::EnablePrerelease;
+                config.save(&root)?;
+
+                println!(
+                    "{}",
+                    if config.prerelease {
+                        "已开启接收预发布版本更新，正在重新检查更新。"
+                    } else {
+                        "已关闭接收预发布版本更新，正在重新检查更新。"
+                    }
+                    .bright_green()
+                );
+
+                continue;
             }
-            if apply_custom {
-                workflow.register(custom::Apply { schema, custom });
-            }
+
+            Action::Exit => return Ok(()),
         }
 
-        Action::InstallGrammar | Action::UpdateGrammar | Action::ForceUpdateGrammar => {
-            workflow.register(grammar::Install {
-                latest: latest.grammar.context("无法获取最新语法模型")?,
-            });
-        }
-
-        Action::Exit => return Ok(()),
+        return workflow.execute(&downloader, &root).await;
     }
-
-    workflow.execute(&downloader, &root).await
 }
 
 #[tokio::main]

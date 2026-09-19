@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use indicatif::{ProgressBar, ProgressStyle};
 use octocrab::{self, models::repos::Asset};
@@ -11,9 +11,8 @@ use std::{
 };
 use tempfile::NamedTempFile;
 
+use crate::INSTALLER_DIR;
 use crate::digest;
-
-const INSTALLER_DIR: &str = "./installer";
 
 pub struct Network {
     client: Client,
@@ -47,9 +46,12 @@ impl Network {
         Ok(response.status() != StatusCode::NOT_MODIFIED)
     }
 
-    pub async fn download(&self, asset: &Asset) -> Result<NamedTempFile> {
-        fs::create_dir_all(INSTALLER_DIR)?;
-        let mut tempfile = NamedTempFile::new_in(INSTALLER_DIR)?;
+    pub async fn download(&self, root: &Path, asset: &Asset) -> Result<NamedTempFile> {
+        let installer_dir = root.join(INSTALLER_DIR);
+        fs::create_dir_all(&installer_dir)
+            .with_context(|| format!("无法创建目录 {}", installer_dir.display()))?;
+        let mut tempfile = NamedTempFile::new_in(&installer_dir)
+            .with_context(|| format!("无法创建临时文件于目录 {}", installer_dir.display()))?;
 
         println!("下载 {}", asset.name);
 
