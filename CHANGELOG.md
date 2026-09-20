@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.1.0...v1.2.0) (2026-09-20)
+
+
+### Features
+
+* show breaking changes when checking updates ([c425a60](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/c425a60174af871385fd5d7064a53f626da113ab))
+
 ## [1.1.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.0.1...v1.1.0) (2026-09-20)
 
 
