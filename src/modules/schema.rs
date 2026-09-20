@@ -8,6 +8,7 @@ use strum::IntoEnumIterator;
 use tempfile::NamedTempFile;
 use zip::ZipArchive;
 
+use crate::changelog::breaking_changes;
 use crate::network::Network;
 use crate::options::{AuxCode, Schema};
 use crate::print_err;
@@ -166,6 +167,30 @@ pub fn check_update(
         return Ok(true);
     }
     Ok(latest_version > installed_version)
+}
+
+pub async fn get_breaking_changes(
+    installed: &InstalledSchema,
+    latest: &LatestSchema,
+) -> Result<Vec<(Version, String)>> {
+    let installed_version = Version::parse(&installed.version)?;
+    let latest_version = Version::parse(latest.release.tag_name.trim_start_matches('v'))?;
+    if latest_version <= installed_version {
+        return Ok(vec![]);
+    }
+
+    let changelog = octocrab::instance()
+        .repos("Fidelxyz", "rime-wanxiang-slim")
+        .get_content()
+        .path("CHANGELOG.md")
+        .r#ref(&latest.release.tag_name)
+        .send()
+        .await?
+        .items
+        .first()
+        .and_then(octocrab::models::repos::Content::decoded_content)
+        .context("CHANGELOG.md 内容为空")?;
+    breaking_changes(&changelog, &installed_version, &latest_version)
 }
 
 fn info_install(schema: Schema) {

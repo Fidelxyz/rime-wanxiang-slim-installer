@@ -1,3 +1,4 @@
+mod changelog;
 mod config;
 mod digest;
 mod modules;
@@ -112,6 +113,29 @@ async fn check_update(
             .inspect_err(|e| print_err(e))
             .unwrap_or(false)
     });
+
+    if schema_has_update {
+        match schema::get_breaking_changes(schema, latest.schema.as_ref().unwrap())
+            .await
+            .context("无法获取破坏性变更")
+        {
+            Ok(changes) => {
+                if !changes.is_empty() {
+                    println!("{}", "! 破坏性变更：".bright_yellow());
+                    let mut skin = termimad::MadSkin::default();
+                    skin.set_fg(termimad::crossterm::style::Color::DarkYellow);
+                    let width = usize::from(termimad::terminal_size().0).saturating_sub(2);
+                    for (version, body) in changes {
+                        skin.text(&format!("## v{version}\n{body}"), Some(width))
+                            .to_string()
+                            .lines()
+                            .for_each(|line| println!("  {line}"));
+                    }
+                }
+            }
+            Err(e) => print_err(e),
+        }
+    }
 
     let grammar_has_update = match (grammar, latest.grammar.as_ref()) {
         (None, _) => {
