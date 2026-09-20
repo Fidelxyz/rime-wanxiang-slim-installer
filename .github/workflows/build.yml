@@ -4,12 +4,9 @@ on:
   workflow_dispatch:
   workflow_call:
   push:
-    branches:
-      - '**'
+    branches-ignore:
+      - main
   pull_request:
-
-permissions:
-  contents: read
 
 jobs:
   build:

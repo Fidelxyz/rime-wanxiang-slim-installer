@@ -29,11 +29,11 @@ jobs:
 
   build:
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
     uses: ./.github/workflows/build.yml
 
   publish:
     needs: [release-please, build]
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-slim
     steps:
       - uses: actions/download-artifact@v4
