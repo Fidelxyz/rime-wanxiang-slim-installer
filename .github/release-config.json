@@ -4,6 +4,7 @@
         ".": {
             "release-type": "rust",
             "draft": true,
+            "force-tag-creation": true,
             "include-component-in-tag": false
         }
     }
