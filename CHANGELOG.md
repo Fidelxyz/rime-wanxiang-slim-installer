@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.0.1...v1.1.0) (2026-09-20)
+
+
+### Features
+
+* add prerelease update toggle ([35b448d](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/35b448d0104e8f72ca3e2d2fc845f2ca2b78449a))
+
+
+### Bug Fixes
+
+* clean up temporary files on SIGINT ([d5ef6b1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/d5ef6b12b2ff5323ca13c8d12ba2a2fb331ac233))
+
 ## [1.0.1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.0.0...v1.0.1) (2026-09-18)
 
 
