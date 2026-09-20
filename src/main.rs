@@ -8,7 +8,7 @@ mod yaml;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
-use inquire::{Confirm, Select};
+use inquire::{Confirm, InquireError, Select};
 use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
 use strum::{Display, IntoEnumIterator};
 use tokio::join;
@@ -452,11 +452,34 @@ async fn run() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    match run().await {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("{}", format!("错误：{e:?}").red());
-            ExitCode::FAILURE
-        }
+    tokio::select! {
+        biased;
+        signal = tokio::signal::ctrl_c() => match signal {
+            Ok(()) => interrupted(),
+            Err(e) => {
+                eprintln!("{}", format!("错误：{e:?}").red());
+                ExitCode::FAILURE
+            }
+        },
+        result = run() => match result {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) if matches!(e.downcast_ref::<InquireError>(), Some(InquireError::OperationInterrupted)) => interrupted(),
+            Err(e) => {
+                eprintln!("{}", format!("错误：{e:?}").red());
+                ExitCode::FAILURE
+            }
+        },
     }
+}
+
+fn interrupted() -> ExitCode {
+    #[cfg(unix)]
+    {
+        signal_hook::low_level::emulate_default_handler(signal_hook::consts::SIGINT)
+            .unwrap_or_else(print_err);
+        ExitCode::FAILURE
+    }
+
+    #[cfg(not(unix))]
+    ExitCode::from(130)
 }
