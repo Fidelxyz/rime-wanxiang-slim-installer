@@ -26,7 +26,7 @@ use crate::workflow::Workflow;
 
 pub(crate) const INSTALLER_DIR: &str = ".installer";
 
-pub(crate) fn print_err(e: impl Display) {
+pub(crate) fn print_err(e: &impl Display) {
     eprintln!("{}", format!("错误：{e:#}").red());
 }
 
@@ -74,11 +74,11 @@ async fn get_latest(prerelease: bool) -> Result<LatestInfo> {
 
     let schema = schema
         .context("获取最新输入方案失败")
-        .inspect_err(|e| print_err(e))
+        .inspect_err(print_err)
         .ok();
     let grammar = grammar
         .context("获取最新语法模型失败")
-        .inspect_err(|e| print_err(e))
+        .inspect_err(print_err)
         .ok();
     Ok(LatestInfo { schema, grammar })
 }
@@ -110,7 +110,7 @@ async fn check_update(
                     }
                 );
             })
-            .inspect_err(|e| print_err(e))
+            .inspect_err(print_err)
             .unwrap_or(false)
     });
 
@@ -133,7 +133,7 @@ async fn check_update(
                     }
                 }
             }
-            Err(e) => print_err(e),
+            Err(e) => print_err(&e),
         }
     }
 
@@ -164,7 +164,7 @@ async fn check_update(
                         }
                     );
                 })
-                .inspect_err(|e| print_err(e))
+                .inspect_err(print_err)
                 .unwrap_or(false)
         }
         _ => false,
@@ -500,7 +500,7 @@ fn interrupted() -> ExitCode {
     #[cfg(unix)]
     {
         signal_hook::low_level::emulate_default_handler(signal_hook::consts::SIGINT)
-            .unwrap_or_else(print_err);
+            .unwrap_or_else(|e| print_err(&e));
         ExitCode::FAILURE
     }
 

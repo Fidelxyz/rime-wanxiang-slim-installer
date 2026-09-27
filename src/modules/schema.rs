@@ -31,7 +31,7 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
     {
         Ok(document) => document,
         Err(e) => {
-            print_err(e);
+            print_err(&e);
             return vec![];
         }
     };
@@ -56,7 +56,7 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
         {
             Ok(document) => document,
             Err(e) => {
-                print_err(e);
+                print_err(&e);
                 continue;
             }
         };
@@ -73,7 +73,7 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
         {
             Ok(version) => version,
             Err(e) => {
-                print_err(e);
+                print_err(&e);
                 continue;
             }
         };
@@ -270,6 +270,6 @@ fn cleanup(root: &Path, old: Schema, new: Schema) {
         let old_schema = root.join(format!("{}.schema.yaml", old.schema_id()));
         fs::remove_file(&old_schema)
             .with_context(|| format!("无法移除旧方案文件 {}", old_schema.display()))
-            .unwrap_or_else(print_err);
+            .unwrap_or_else(|e| print_err(&e));
     }
 }
