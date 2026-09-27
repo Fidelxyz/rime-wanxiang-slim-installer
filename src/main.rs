@@ -121,7 +121,7 @@ async fn check_update(
         {
             Ok(changes) => {
                 if !changes.is_empty() {
-                    println!("{}", "! 破坏性变更：".bright_yellow());
+                    eprintln!("{}", "! 破坏性变更：".bright_yellow());
                     let mut skin = termimad::MadSkin::default();
                     skin.set_fg(termimad::crossterm::style::Color::DarkYellow);
                     let width = usize::from(termimad::terminal_size().0).saturating_sub(2);
@@ -129,7 +129,7 @@ async fn check_update(
                         skin.text(&format!("## v{version}\n{body}"), Some(width))
                             .to_string()
                             .lines()
-                            .for_each(|line| println!("  {line}"));
+                            .for_each(|line| eprintln!("  {line}"));
                     }
                 }
             }

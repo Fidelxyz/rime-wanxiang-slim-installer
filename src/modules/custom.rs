@@ -112,7 +112,7 @@ fn warn_apply(root: &Path, schema: Schema) {
     for schema_id in [schema.schema_id(), "wanxiang_reverse"] {
         let file = format!("{schema_id}.custom.yaml");
         let target = root.join(&file);
-        println!(
+        eprintln!(
             "{}",
             if target.exists() {
                 format!("将修改配置文件：{}", target.display())
@@ -122,7 +122,7 @@ fn warn_apply(root: &Path, schema: Schema) {
             .bright_yellow()
         );
     }
-    println!(
+    eprintln!(
         "{}",
         format!(
             "将修改配置文件：{}",

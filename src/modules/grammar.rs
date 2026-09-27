@@ -76,12 +76,12 @@ fn info_install() {
 }
 
 fn warn_install(root: &Path) {
-    println!(
+    eprintln!(
         "{}",
         format!("将安装语法模型至：{}", root.join(GRAMMAR_NAME).display()).bright_yellow()
     );
     if root.join(GRAMMAR_NAME).exists() {
-        println!("{}", "原有文件将被覆盖。".bright_yellow());
+        eprintln!("{}", "原有文件将被覆盖。".bright_yellow());
     }
 }
 

@@ -202,12 +202,12 @@ fn info_install(schema: Schema) {
 }
 
 fn warn_install(root: &Path) -> Result<()> {
-    println!(
+    eprintln!(
         "{}",
         format!("将安装输入方案至目录：{}", root.display()).bright_yellow()
     );
     if root.exists() && root.read_dir()?.next().is_some() {
-        println!("{}", "该目录下方案文件与子文件夹将被覆盖。".bright_yellow());
+        eprintln!("{}", "该目录下方案文件与子文件夹将被覆盖。".bright_yellow());
     }
     Ok(())
 }
