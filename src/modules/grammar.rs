@@ -95,7 +95,12 @@ async fn update(downloader: &Network, root: &Path, latest: &LatestGrammar) -> Re
 }
 
 fn install(file: NamedTempFile, path: &Path) -> Result<()> {
+    #[cfg(windows)]
+    if path.exists() {
+        crate::file_lock::release_file_locks(path)?;
+    }
+
     file.persist(path)?;
-    println!("{}", "输入方案安装完成。".bright_green());
+    println!("{}", "语法模型安装完成。".bright_green());
     Ok(())
 }

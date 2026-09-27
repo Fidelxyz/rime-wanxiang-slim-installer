@@ -1,6 +1,8 @@
 mod changelog;
 mod config;
 mod digest;
+#[cfg(windows)]
+mod file_lock;
 mod modules;
 mod network;
 mod options;

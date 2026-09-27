@@ -27,6 +27,9 @@ termimad = "0.35"
 [target.'cfg(unix)'.dependencies]
 signal-hook = { version = "0.3", default-features = false }
 
+[target.'cfg(windows)'.dependencies]
+restart-manager = "0.1"
+
 [profile.release]
 codegen-units = 1
 lto = "fat"

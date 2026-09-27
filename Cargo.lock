@@ -1776,6 +1776,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "restart-manager"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df6cd7dcc3aaa8e2cf3486c1dd731bcbcebf8d18975d06b10faa10249e0cc428"
+dependencies = [
+ "bitflags",
+ "thiserror",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rfc6979"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1798,6 +1809,7 @@ dependencies = [
  "octocrab",
  "regex",
  "reqwest",
+ "restart-manager",
  "saphyr",
  "semver",
  "sha2",
