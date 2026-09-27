@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.2.0...v1.3.0) (2026-09-27)
+
+
+### Features
+
+* release file locks before installing grammar model on Windows ([c9c1b40](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/c9c1b4040b6c36af8712e78013ed16f7ebfb93fc))
+
+
+### Bug Fixes
+
+* exit silently when installation is cancelled ([56ccef3](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/56ccef3425f01685300f2a4aad727ef71523b43b))
+* print warning to stderr ([9df2da1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/9df2da1b849dfc1010f41cf548a1d564756ccad5))
+
 ## [1.2.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.1.0...v1.2.0) (2026-09-20)
 
 
