@@ -1,9 +1,9 @@
-use anyhow::Result;
+use anyhow::{Result, ensure};
 use colored::Colorize;
 use inquire::Confirm;
 use std::{future::Future, path::Path, pin::Pin};
 
-use crate::network::Network;
+use crate::{error::UserCancelled, network::Network};
 
 pub type ApplyFuture<'a> = Pin<Box<dyn Future<Output = Result<()>> + 'a>>;
 
@@ -34,9 +34,7 @@ impl Workflow {
         for module in &self.modules {
             module.warn(root)?;
         }
-        if !Self::prompt_confirm()? {
-            return Ok(());
-        }
+        ensure!(Self::prompt_confirm()?, UserCancelled);
         for module in self.modules {
             module.apply(downloader, root).await?;
         }

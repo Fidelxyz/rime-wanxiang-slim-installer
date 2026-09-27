@@ -1,6 +1,7 @@
 mod changelog;
 mod config;
 mod digest;
+mod error;
 #[cfg(windows)]
 mod file_lock;
 mod modules;
@@ -17,6 +18,8 @@ use strum::{Display, IntoEnumIterator};
 use tokio::join;
 
 use crate::config::Config;
+use crate::error::UserCancelled;
+use crate::error::print_err;
 use crate::modules::{
     custom::{self, Custom},
     grammar::{self, InstalledGrammar, LatestGrammar},
@@ -27,10 +30,6 @@ use crate::options::{AuxCode, AuxMode, Pinyin, Schema};
 use crate::workflow::Workflow;
 
 pub(crate) const INSTALLER_DIR: &str = ".installer";
-
-pub(crate) fn print_err(e: &impl Display) {
-    eprintln!("{}", format!("错误：{e:#}").red());
-}
 
 fn resolve_installed(
     root: &Path,
@@ -489,6 +488,7 @@ async fn main() -> ExitCode {
         },
         result = run() => match result {
             Ok(()) => ExitCode::SUCCESS,
+            Err(e) if e.is::<UserCancelled>() || matches!(e.downcast_ref::<InquireError>(), Some(InquireError::OperationCanceled)) => ExitCode::SUCCESS,
             Err(e) if matches!(e.downcast_ref::<InquireError>(), Some(InquireError::OperationInterrupted)) => interrupted(),
             Err(e) => {
                 eprintln!("{}", format!("错误：{e:?}").red());

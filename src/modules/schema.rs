@@ -9,9 +9,9 @@ use tempfile::NamedTempFile;
 use zip::ZipArchive;
 
 use crate::changelog::breaking_changes;
+use crate::error::print_err;
 use crate::network::Network;
 use crate::options::{AuxCode, Schema};
-use crate::print_err;
 use crate::workflow::{ApplyFuture, Module};
 use crate::yaml::Document;
 

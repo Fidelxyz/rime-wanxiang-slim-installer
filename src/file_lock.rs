@@ -1,9 +1,10 @@
-use crate::print_err;
 use anyhow::{Context, Result, ensure};
 use colored::Colorize;
 use inquire::Confirm;
 use restart_manager::{AffectedApplications, RestartSession, ShutdownOptions};
 use std::path::Path;
+
+use crate::error::{UserCancelled, print_err};
 
 pub fn release_file_locks(path: &Path) -> Result<()> {
     let result = match query_file_locks(path).context("查询文件占用进程失败") {
@@ -23,7 +24,7 @@ pub fn release_file_locks(path: &Path) -> Result<()> {
                 Confirm::new("是否终止以上程序并继续安装？")
                     .with_default(true)
                     .prompt()?,
-                "已取消安装"
+                UserCancelled
             );
 
             shutdown_applications(session).context("关闭文件占用进程失败")
@@ -41,7 +42,7 @@ pub fn release_file_locks(path: &Path) -> Result<()> {
             Confirm::new("是否已关闭占用程序并继续安装？")
                 .with_default(true)
                 .prompt()?,
-            "已取消安装"
+            UserCancelled
         );
     }
 
