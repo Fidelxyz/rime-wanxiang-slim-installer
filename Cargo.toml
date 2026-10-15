@@ -7,25 +7,27 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 anyhow = "1"
-tempfile = "3"
-strum = { version = "0.28", features = ["derive"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-httpdate = "1"
-regex = "1"
-semver = "1"
-sha2 = "0.10"
+base16ct = { version = "0.2", features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
-zip = { version = "4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
-saphyr = { version = "0.0", default-features = false }
-octocrab = "0.54"
-inquire = { version = "0.9", default-features = false, features = ["crossterm"] }
-indicatif = { version = "0.18", default-features = false, features = ["unicode-width"] }
 colored = "3"
+digest-io = "0.1"
+httpdate = "1"
+indicatif = { version = "0.18", default-features = false, features = ["unicode-width"] }
+inquire = { version = "0.9", default-features = false, features = ["crossterm"] }
+octocrab = "0.54"
+regex = "1"
+reqwest = { version = "0.13", default-features = false }
+saphyr = { version = "0.2", default-features = false }
+semver = "1"
+sha2 = "0.11"
+strum = { version = "0.28", features = ["derive"] }
+tempfile = "3"
 termimad = "0.35"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [target.'cfg(unix)'.dependencies]
-signal-hook = { version = "0.3", default-features = false }
+signal-hook = { version = "0.4", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 restart-manager = "0.1"

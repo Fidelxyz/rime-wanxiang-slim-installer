@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
+use digest_io::IoWrapper;
 use octocrab::{self, models::repos::Asset};
 use sha2::{Digest, Sha256};
 use std::{fs::File, io};
@@ -16,10 +17,10 @@ pub fn verify(file: &File, asset: &Asset) -> Result<()> {
 }
 
 fn file_digest(file: &File) -> Result<String> {
-    let mut hasher = Sha256::new();
+    let mut hasher = IoWrapper(Sha256::new());
     let mut reader = io::BufReader::new(file);
     io::copy(&mut reader, &mut hasher)?;
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(base16ct::lower::encode_string(&hasher.0.finalize()))
 }
 
 fn asset_digest(asset: &Asset) -> Result<String> {
