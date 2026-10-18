@@ -37,8 +37,6 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
     };
     let schema_list = default_document.values(&["schema_list", "schema"]);
 
-    let aux_code_assignment_regex = regex!(r#"(?m)^\s*M\.AUX_CODE\s*=\s*["']([^"']+)["']"#);
-
     let mut installed = vec![];
     for schema in Schema::iter() {
         let schema_id = schema.schema_id();
@@ -83,7 +81,7 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
             Schema::Pro(_) => fs::read_to_string(root.join("lua/meta.lua"))
                 .ok()
                 .and_then(|meta| {
-                    aux_code_assignment_regex
+                    regex!(r#"(?m)^\s*M\.AUX_CODE\s*=\s*["']([^"']+)["']"#)
                         .captures(&meta)
                         .and_then(|c| AuxCode::iter().find(|value| value.code() == &c[1]))
                 }),

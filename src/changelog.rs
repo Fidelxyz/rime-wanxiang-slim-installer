@@ -8,8 +8,6 @@ pub fn breaking_changes(
     installed: &Version,
     latest: &Version,
 ) -> Result<Vec<(Version, String)>> {
-    let version_regex = regex!(r"^\[?v?([^\]\s]+)");
-
     let mut changes = Vec::new();
     let mut stable_versions = HashSet::new();
     let mut version = None;
@@ -31,7 +29,7 @@ pub fn breaking_changes(
                 continue;
             }
 
-            let captures = version_regex
+            let captures = regex!(r"^\[?v?([^\]\s]+)")
                 .captures(heading)
                 .with_context(|| format!("无法解析 CHANGELOG 标题：{heading}"))?;
             let (_, [text]) = captures.extract();

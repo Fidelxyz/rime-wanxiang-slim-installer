@@ -45,8 +45,6 @@ pub struct Custom {
 }
 
 pub fn detect(root: &Path, schema: Schema) -> Result<Custom> {
-    let algebra_reference_regex = regex!(r"^wanxiang_algebra:/(?:base|pro)/(.+)$");
-
     // Read algebra patches from custom.yaml if it exists
     let custom_path = root.join(format!("{}.custom.yaml", schema.schema_id()));
     let mut algebra_patches = if custom_path.exists() {
@@ -79,7 +77,7 @@ pub fn detect(root: &Path, schema: Schema) -> Result<Custom> {
     let names: Vec<_> = algebra_patches
         .iter()
         .filter_map(|field| {
-            algebra_reference_regex
+            regex!(r"^wanxiang_algebra:/(?:base|pro)/(.+)$")
                 .captures(field)
                 .map(|capture| capture.get(1).unwrap().as_str())
         })
