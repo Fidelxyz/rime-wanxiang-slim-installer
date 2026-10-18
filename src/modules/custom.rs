@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
-use regex::Regex;
+use regex::regex;
 use std::{fs, path::Path};
 use strum::IntoEnumIterator;
 
@@ -45,7 +45,7 @@ pub struct Custom {
 }
 
 pub fn detect(root: &Path, schema: Schema) -> Result<Custom> {
-    let algebra_reference_regex = Regex::new(r"^wanxiang_algebra:/(?:base|pro)/(.+)$").unwrap();
+    let algebra_reference_regex = regex!(r"^wanxiang_algebra:/(?:base|pro)/(.+)$");
 
     // Read algebra patches from custom.yaml if it exists
     let custom_path = root.join(format!("{}.custom.yaml", schema.schema_id()));

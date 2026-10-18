@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use octocrab::models::repos::{Asset, Release};
-use regex::Regex;
+use regex::regex;
 use semver::Version;
 use std::{fs, path::Path};
 use strum::IntoEnumIterator;
@@ -37,8 +37,7 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
     };
     let schema_list = default_document.values(&["schema_list", "schema"]);
 
-    let aux_code_assignment_regex =
-        Regex::new(r#"(?m)^\s*M\.AUX_CODE\s*=\s*["']([^"']+)["']"#).unwrap();
+    let aux_code_assignment_regex = regex!(r#"(?m)^\s*M\.AUX_CODE\s*=\s*["']([^"']+)["']"#);
 
     let mut installed = vec![];
     for schema in Schema::iter() {

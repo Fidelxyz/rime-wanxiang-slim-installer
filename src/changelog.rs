@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use regex::Regex;
+use regex::regex;
 use semver::Version;
 use std::collections::HashSet;
 
@@ -8,7 +8,7 @@ pub fn breaking_changes(
     installed: &Version,
     latest: &Version,
 ) -> Result<Vec<(Version, String)>> {
-    let version_regex = Regex::new(r"^\[?v?([^\]\s]+)").unwrap();
+    let version_regex = regex!(r"^\[?v?([^\]\s]+)");
 
     let mut changes = Vec::new();
     let mut stable_versions = HashSet::new();
