@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.1...v1.3.2) (2026-10-18)
+
+
+### Bug Fixes
+
+* restore HTTPS support for downloads ([c650022](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/c650022c54e7bce656ed015c9f188641cb9b3c4e))
+
 ## [1.3.1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.0...v1.3.1) (2026-10-15)
 
 
