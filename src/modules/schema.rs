@@ -236,7 +236,7 @@ fn asset(schema: Schema, latest: LatestSchema) -> Result<Asset> {
                 == match schema {
                     Schema::Base => String::from("rime-wanxiang-base.zip"),
                     Schema::Pro(Some(aux)) => format!("rime-wanxiang-{}-fuzhu.zip", aux.code()),
-                    Schema::Pro(None) => panic!(),
+                    Schema::Pro(None) => unreachable!(),
                 }
         })
         .context("Release 中未找到 Asset")

@@ -40,7 +40,5 @@ strip = "debuginfo"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-missing-panics-doc = "allow"
-used-underscore-binding = "allow"
-too-many-lines = "allow"
-similar-names = "allow"
+too_many_lines = "allow"
+similar_names = "allow"
