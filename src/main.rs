@@ -477,6 +477,10 @@ async fn run() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .unwrap();
+
     tokio::select! {
         biased;
         signal = tokio::signal::ctrl_c() => match signal {
