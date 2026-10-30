@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.2...v1.3.3) (2026-10-30)
+
+
+### Performance Improvements
+
+* reduce binary size by trimming dependency features ([1c6063e](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/1c6063e81fecacabe5364d634959a6a9fcdc20c8))
+
 ## [1.3.2](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.1...v1.3.2) (2026-10-18)
 
 
