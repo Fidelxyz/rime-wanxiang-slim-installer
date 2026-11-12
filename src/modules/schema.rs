@@ -16,7 +16,7 @@ use crate::changelog::breaking_changes;
 use crate::error::print_err;
 use crate::network::Network;
 use crate::options::{AuxCode, Schema};
-use crate::workflow::{Module, ModuleFuture};
+use crate::workflow::{Module, PrepareFuture, PreparedModule};
 use crate::yaml::Document;
 
 #[derive(Clone)]
@@ -103,19 +103,8 @@ pub fn detect(root: &Path) -> Vec<InstalledSchema> {
 }
 
 pub struct Install {
-    schema: Schema,
-    latest: LatestSchema,
-    plan: Option<InstallPlan>,
-}
-
-impl Install {
-    pub fn new(schema: Schema, latest: LatestSchema) -> Self {
-        Self {
-            schema,
-            latest,
-            plan: None,
-        }
-    }
+    pub schema: Schema,
+    pub latest: LatestSchema,
 }
 
 impl Module for Install {
@@ -123,27 +112,30 @@ impl Module for Install {
         info_install(self.schema);
     }
 
-    fn prepare<'a>(&'a mut self, downloader: &'a Network, root: &'a Path) -> ModuleFuture<'a> {
+    fn prepare<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> PrepareFuture<'a> {
         Box::pin(async move {
             let file = download(downloader, root, self.schema, &self.latest)
                 .await
                 .context("输入方案下载失败")?;
             let package = extract(file).context("输入方案解压失败")?;
-            self.plan = Some(InstallPlan::new(root, package)?);
-            Ok(())
+            let plan = InstallPlan::new(root, package)?;
+            Ok(Box::new(PreparedInstall { plan }) as Box<dyn PreparedModule>)
         })
     }
+}
 
+struct PreparedInstall {
+    plan: InstallPlan,
+}
+
+impl PreparedModule for PreparedInstall {
     fn warn(&self, root: &Path) -> Result<()> {
-        warn_install(root, self.plan.as_ref().unwrap());
+        warn_install(root, &self.plan);
         Ok(())
     }
 
-    fn apply<'a>(self: Box<Self>, _downloader: &'a Network, root: &'a Path) -> ModuleFuture<'a> {
-        Box::pin(async move {
-            let plan = self.plan.unwrap();
-            install(root, &plan).context("输入方案安装失败")
-        })
+    fn apply(self: Box<Self>, root: &Path) -> Result<()> {
+        install(root, &self.plan).context("输入方案安装失败")
     }
 }
 

@@ -5,18 +5,18 @@ use std::{future::Future, path::Path, pin::Pin};
 
 use crate::{error::UserCancelled, network::Network};
 
-pub type ModuleFuture<'a> = Pin<Box<dyn Future<Output = Result<()>> + 'a>>;
+pub type PrepareFuture<'a> = Pin<Box<dyn Future<Output = Result<Box<dyn PreparedModule>>> + 'a>>;
 
 pub trait Module {
     fn info(&self);
 
-    fn prepare<'a>(&'a mut self, _downloader: &'a Network, _root: &'a Path) -> ModuleFuture<'a> {
-        Box::pin(async { Ok(()) })
-    }
+    fn prepare<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> PrepareFuture<'a>;
+}
 
+pub trait PreparedModule {
     fn warn(&self, root: &Path) -> Result<()>;
 
-    fn apply<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> ModuleFuture<'a>;
+    fn apply(self: Box<Self>, root: &Path) -> Result<()>;
 }
 
 #[derive(Default)]
@@ -29,7 +29,7 @@ impl Workflow {
         self.modules.push(Box::new(module));
     }
 
-    pub async fn execute(mut self, downloader: &Network, root: &Path) -> Result<()> {
+    pub async fn execute(self, downloader: &Network, root: &Path) -> Result<()> {
         if self.modules.is_empty() {
             return Ok(());
         }
@@ -37,15 +37,16 @@ impl Workflow {
         for module in &self.modules {
             module.info();
         }
-        for module in &mut self.modules {
-            module.prepare(downloader, root).await?;
+        let mut prepared = vec![];
+        for module in self.modules {
+            prepared.push(module.prepare(downloader, root).await?);
         }
-        for module in &self.modules {
+        for module in &prepared {
             module.warn(root)?;
         }
         ensure!(Self::prompt_confirm()?, UserCancelled);
-        for module in self.modules {
-            module.apply(downloader, root).await?;
+        for module in prepared {
+            module.apply(root)?;
         }
         Self::prompt_finish();
         Ok(())

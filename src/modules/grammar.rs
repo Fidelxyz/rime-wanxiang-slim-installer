@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 
 use crate::network::Network;
-use crate::workflow::{Module, ModuleFuture};
+use crate::workflow::{Module, PrepareFuture, PreparedModule};
 
 pub struct InstalledGrammar {
     pub path: PathBuf,
@@ -28,17 +28,28 @@ impl Module for Install {
         info_install();
     }
 
+    fn prepare<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> PrepareFuture<'a> {
+        Box::pin(async move {
+            let file = download(downloader, root, &self.latest)
+                .await
+                .context("语法模型下载失败")?;
+            Ok(Box::new(PreparedInstall { file }) as Box<dyn PreparedModule>)
+        })
+    }
+}
+
+struct PreparedInstall {
+    file: NamedTempFile,
+}
+
+impl PreparedModule for PreparedInstall {
     fn warn(&self, root: &Path) -> Result<()> {
         warn_install(root);
         Ok(())
     }
 
-    fn apply<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> ModuleFuture<'a> {
-        Box::pin(async move {
-            update(downloader, root, &self.latest)
-                .await
-                .context("更新语法模型失败")
-        })
+    fn apply(self: Box<Self>, root: &Path) -> Result<()> {
+        install(self.file, &root.join(GRAMMAR_NAME)).context("语法模型安装失败")
     }
 }
 
@@ -85,13 +96,12 @@ fn warn_install(root: &Path) {
     }
 }
 
-async fn update(downloader: &Network, root: &Path, latest: &LatestGrammar) -> Result<()> {
-    let downloaded = downloader
-        .download(root, &latest.asset)
-        .await
-        .context("语法模型下载失败")?;
-    install(downloaded, &root.join(GRAMMAR_NAME)).context("语法模型安装失败")?;
-    Ok(())
+async fn download(
+    downloader: &Network,
+    root: &Path,
+    latest: &LatestGrammar,
+) -> Result<NamedTempFile> {
+    downloader.download(root, &latest.asset).await
 }
 
 fn install(file: NamedTempFile, path: &Path) -> Result<()> {

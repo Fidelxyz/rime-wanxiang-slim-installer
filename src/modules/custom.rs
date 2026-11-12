@@ -6,7 +6,7 @@ use strum::IntoEnumIterator;
 
 use crate::network::Network;
 use crate::options::{AuxMode, Pinyin, Schema};
-use crate::workflow::{Module, ModuleFuture};
+use crate::workflow::{Module, PrepareFuture, PreparedModule};
 use crate::yaml::Document;
 
 const CUSTOM_ALGEBRA_PATHS: &[&[&str]] = &[
@@ -26,15 +26,23 @@ impl Module for Apply {
         info_apply(self.custom);
     }
 
+    fn prepare<'a>(
+        self: Box<Self>,
+        _downloader: &'a Network,
+        _root: &'a Path,
+    ) -> PrepareFuture<'a> {
+        Box::pin(async move { Ok(self as Box<dyn PreparedModule>) })
+    }
+}
+
+impl PreparedModule for Apply {
     fn warn(&self, root: &Path) -> Result<()> {
         warn_apply(root, self.schema);
         Ok(())
     }
 
-    fn apply<'a>(self: Box<Self>, _downloader: &'a Network, root: &'a Path) -> ModuleFuture<'a> {
-        Box::pin(async move {
-            apply(root, self.schema, self.custom).context("应用方案配置失败")
-        })
+    fn apply(self: Box<Self>, root: &Path) -> Result<()> {
+        apply(root, self.schema, self.custom).context("应用方案配置失败")
     }
 }
 
