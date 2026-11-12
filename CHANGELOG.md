@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.3...v1.4.0) (2026-11-12)
+
+
+### Features
+
+* download all files before confirming installation ([d4304b7](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/d4304b7e9282d2bb762ba95b86240c973969e7ac))
+* remove stale YAML files when installing schema ([078c9b3](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/078c9b3edd8218fc29993b007449e9cda833ebf7))
+
+
+### Performance Improvements
+
+* download schema and grammar in parallel ([974f13d](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/974f13d57474962304f2834fa4a893114c8e3acc))
+
 ## [1.3.3](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.2...v1.3.3) (2026-10-30)
 
 
