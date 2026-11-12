@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use octocrab::{self, models::repos::Asset};
 use reqwest::{Client, StatusCode, header};
 use std::{
@@ -16,6 +16,7 @@ use crate::digest;
 
 pub struct Network {
     client: Client,
+    progress: MultiProgress,
 }
 
 impl Network {
@@ -28,7 +29,10 @@ impl Network {
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_hours(1))
             .build()?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            progress: MultiProgress::new(),
+        })
     }
 
     pub async fn check_update(&self, path: &Path, asset: &Asset) -> Result<bool> {
@@ -53,8 +57,6 @@ impl Network {
         let mut tempfile = NamedTempFile::new_in(&installer_dir)
             .with_context(|| format!("无法创建临时文件于目录 {}", installer_dir.display()))?;
 
-        println!("下载 {}", asset.name);
-
         let mut response = self
             .client
             .get(asset.browser_download_url.clone())
@@ -69,9 +71,15 @@ impl Network {
             .transpose()?;
 
         let total = response.content_length();
-        let progress = ProgressBar::new(total.unwrap_or(0)).with_style(
-            ProgressStyle::with_template("[{percent:>3}%] {wide_bar} {bytes} / {total_bytes}")
-                .unwrap(),
+        let progress = self.progress.add(
+            ProgressBar::new(total.unwrap_or(0))
+                .with_style(
+                    ProgressStyle::with_template(
+                        "{prefix} [{percent:>3}%] {wide_bar} {bytes} / {total_bytes}",
+                    )
+                    .unwrap(),
+                )
+                .with_prefix(format!("下载 {}", asset.name)),
         );
         while let Some(chunk) = response.chunk().await? {
             tempfile.write_all(&chunk)?;

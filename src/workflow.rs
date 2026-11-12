@@ -1,5 +1,6 @@
 use anyhow::{Result, ensure};
 use colored::Colorize;
+use futures_util::future::try_join_all;
 use inquire::Confirm;
 use std::{future::Future, path::Path, pin::Pin};
 
@@ -37,10 +38,12 @@ impl Workflow {
         for module in &self.modules {
             module.info();
         }
-        let mut prepared = vec![];
-        for module in self.modules {
-            prepared.push(module.prepare(downloader, root).await?);
-        }
+        let prepared = try_join_all(
+            self.modules
+                .into_iter()
+                .map(|module| module.prepare(downloader, root)),
+        )
+        .await?;
         for module in &prepared {
             module.warn(root);
         }

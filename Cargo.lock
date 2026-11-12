@@ -1587,6 +1587,7 @@ dependencies = [
  "chrono",
  "colored",
  "digest-io",
+ "futures-util",
  "indicatif",
  "inquire",
  "octocrab",
