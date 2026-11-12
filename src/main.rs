@@ -373,11 +373,7 @@ async fn run() -> Result<()> {
                 let (schema, custom, with_grammar) =
                     prompt_options!(&default_options, true; schema, custom, with_grammar)?;
 
-                workflow.register(schema::Install {
-                    schema,
-                    latest: latest_schema,
-                    previous: None,
-                });
+                workflow.register(schema::Install::new(schema, latest_schema));
                 workflow.register(custom::Apply { schema, custom });
                 if with_grammar {
                     workflow.register(grammar::Install {
@@ -397,11 +393,10 @@ async fn run() -> Result<()> {
 
                 if has_update.schema {
                     let (schema,) = prompt_options!(&default_options, false; schema)?;
-                    workflow.register(schema::Install {
+                    workflow.register(schema::Install::new(
                         schema,
-                        latest: latest.schema.context("无法获取最新输入方案")?,
-                        previous: None,
-                    });
+                        latest.schema.context("无法获取最新输入方案")?,
+                    ));
                 }
                 if has_update.grammar {
                     workflow.register(grammar::Install {
@@ -414,11 +409,7 @@ async fn run() -> Result<()> {
                 let latest_schema = latest.schema.context("无法获取最新输入方案")?;
                 let (schema,) = prompt_options!(&default_options, false; schema)?;
 
-                workflow.register(schema::Install {
-                    schema,
-                    latest: latest_schema,
-                    previous: None,
-                });
+                workflow.register(schema::Install::new(schema, latest_schema));
             }
 
             Action::InstallGrammar | Action::UpdateGrammar | Action::ForceUpdateGrammar => {
@@ -440,11 +431,10 @@ async fn run() -> Result<()> {
                 }
 
                 if install_schema {
-                    workflow.register(schema::Install {
+                    workflow.register(schema::Install::new(
                         schema,
-                        latest: latest.schema.context("无法获取最新输入方案")?,
-                        previous: installed_schema.as_ref().map(|installed| installed.schema),
-                    });
+                        latest.schema.context("无法获取最新输入方案")?,
+                    ));
                 }
                 if apply_custom {
                     workflow.register(custom::Apply { schema, custom });

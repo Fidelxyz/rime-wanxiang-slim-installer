@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 
 use crate::network::Network;
-use crate::workflow::{ApplyFuture, Module};
+use crate::workflow::{Module, ModuleFuture};
 
 pub struct InstalledGrammar {
     pub path: PathBuf,
@@ -33,7 +33,7 @@ impl Module for Install {
         Ok(())
     }
 
-    fn apply<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> ApplyFuture<'a> {
+    fn apply<'a>(self: Box<Self>, downloader: &'a Network, root: &'a Path) -> ModuleFuture<'a> {
         Box::pin(async move {
             update(downloader, root, &self.latest)
                 .await
