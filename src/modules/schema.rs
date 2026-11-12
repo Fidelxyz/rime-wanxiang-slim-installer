@@ -129,9 +129,8 @@ struct PreparedInstall {
 }
 
 impl PreparedModule for PreparedInstall {
-    fn warn(&self, root: &Path) -> Result<()> {
+    fn warn(&self, root: &Path) {
         warn_install(root, &self.plan);
-        Ok(())
     }
 
     fn apply(self: Box<Self>, root: &Path) -> Result<()> {

@@ -14,7 +14,7 @@ pub trait Module {
 }
 
 pub trait PreparedModule {
-    fn warn(&self, root: &Path) -> Result<()>;
+    fn warn(&self, root: &Path);
 
     fn apply(self: Box<Self>, root: &Path) -> Result<()>;
 }
@@ -42,7 +42,7 @@ impl Workflow {
             prepared.push(module.prepare(downloader, root).await?);
         }
         for module in &prepared {
-            module.warn(root)?;
+            module.warn(root);
         }
         ensure!(Self::prompt_confirm()?, UserCancelled);
         for module in prepared {

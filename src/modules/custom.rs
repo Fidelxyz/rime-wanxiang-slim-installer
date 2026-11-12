@@ -36,9 +36,8 @@ impl Module for Apply {
 }
 
 impl PreparedModule for Apply {
-    fn warn(&self, root: &Path) -> Result<()> {
+    fn warn(&self, root: &Path) {
         warn_apply(root, self.schema);
-        Ok(())
     }
 
     fn apply(self: Box<Self>, root: &Path) -> Result<()> {
