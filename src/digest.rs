@@ -9,8 +9,8 @@ pub fn verify(file: &File, asset: &Asset) -> Result<()> {
     let file_digest = file_digest(file)?;
     let asset_digest = asset_digest(asset)?;
     if file_digest != asset_digest {
-        eprintln!("{}", "本地 SHA-256：{file_digest}".red());
-        eprintln!("{}", "远端 SHA-256：{asset_digest}".red());
+        eprintln!("{}", format!("本地 SHA-256：{file_digest}").red());
+        eprintln!("{}", format!("远端 SHA-256：{asset_digest}").red());
         bail!("{} SHA-256 不匹配", asset.name);
     }
     Ok(())
