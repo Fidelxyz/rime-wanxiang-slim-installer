@@ -10,7 +10,6 @@ anyhow = "1"
 base16ct = { version = "1", features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 colored = "3"
-digest-io = "0.1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 indicatif = { version = "0.18", default-features = false, features = ["unicode-width"] }
 inquire = { version = "0.9", default-features = false, features = ["crossterm"] }

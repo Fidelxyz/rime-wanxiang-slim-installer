@@ -1,12 +1,9 @@
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
-use digest_io::IoWrapper;
 use octocrab::{self, models::repos::Asset};
-use sha2::{Digest, Sha256};
-use std::{fs::File, io};
 
-pub fn verify(file: &File, asset: &Asset) -> Result<()> {
-    let file_digest = file_digest(file)?;
+pub fn verify(file_digest: &[u8], asset: &Asset) -> Result<()> {
+    let file_digest = base16ct::lower::encode_string(file_digest);
     let asset_digest = asset_digest(asset)?;
     if file_digest != asset_digest {
         eprintln!("{}", format!("本地 SHA-256：{file_digest}").red());
@@ -14,13 +11,6 @@ pub fn verify(file: &File, asset: &Asset) -> Result<()> {
         bail!("{} SHA-256 不匹配", asset.name);
     }
     Ok(())
-}
-
-fn file_digest(file: &File) -> Result<String> {
-    let mut hasher = IoWrapper(Sha256::new());
-    let mut reader = io::BufReader::new(file);
-    io::copy(&mut reader, &mut hasher)?;
-    Ok(base16ct::lower::encode_string(&hasher.0.finalize()))
 }
 
 fn asset_digest(asset: &Asset) -> Result<String> {

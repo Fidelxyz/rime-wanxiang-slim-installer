@@ -3,12 +3,8 @@ use chrono::{DateTime, Utc};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use octocrab::{self, models::repos::Asset};
 use reqwest::{Client, StatusCode, header};
-use std::{
-    fs,
-    io::{self, Seek, Write},
-    path::Path,
-    time::Duration,
-};
+use sha2::{Digest, Sha256};
+use std::{fs, io::Write, path::Path, time::Duration};
 use tempfile::NamedTempFile;
 
 use crate::INSTALLER_DIR;
@@ -70,6 +66,8 @@ impl Network {
             .map(|value| -> Result<_> { Ok(DateTime::parse_from_rfc2822(value.to_str()?)?.into()) })
             .transpose()?;
 
+        let mut hasher = Sha256::new();
+
         let total = response.content_length();
         let progress = self.progress.add(
             ProgressBar::new(total.unwrap_or(0))
@@ -83,13 +81,13 @@ impl Network {
         );
         while let Some(chunk) = response.chunk().await? {
             tempfile.write_all(&chunk)?;
+            hasher.update(&chunk);
             progress.inc(chunk.len() as u64);
         }
         progress.finish();
 
         tempfile.flush()?;
-        tempfile.seek(io::SeekFrom::Start(0))?;
-        digest::verify(tempfile.as_file(), asset)?;
+        digest::verify(&hasher.finalize(), asset)?;
         if let Some(modified) = modified {
             tempfile.as_file().set_modified(modified)?;
         }
