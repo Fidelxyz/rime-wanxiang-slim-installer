@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.4.0...v1.4.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* show actual SHA-256 values on digest mismatch ([bb8dd66](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/bb8dd6661ca4703d52a59235b2be6c469e4ce452))
+
+
+### Performance Improvements
+
+* check grammar update against asset timestamp without a request ([7425be6](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/7425be6bc7e94aee0b6762759fb4bf324fe1c7f1))
+* compute SHA-256 while downloading ([74767b5](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/74767b5c7f37318a69b2fe3bc195a717f3c44e9f))
+* move blocking file I/O off the async download task ([9bc6bcd](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/9bc6bcd94198d8300a52ebadf81517d5ca34b002))
+
 ## [1.4.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.3.3...v1.4.0) (2026-11-12)
 
 

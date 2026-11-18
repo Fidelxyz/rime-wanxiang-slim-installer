@@ -1580,7 +1580,7 @@ dependencies = [
 
 [[package]]
 name = "rime-wanxiang-slim-installer"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "anyhow",
  "base16ct",
