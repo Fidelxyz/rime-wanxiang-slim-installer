@@ -42,8 +42,8 @@ restart-manager = "0.1"
 [profile.release]
 codegen-units = 1
 lto = "fat"
-opt-level = 3
-strip = "debuginfo"
+opt-level = "s"
+strip = "symbols"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
