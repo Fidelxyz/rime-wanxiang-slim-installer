@@ -30,7 +30,7 @@ sha2 = { version = "0.11", default-features = false }
 strum = { version = "0.28", features = ["derive"] }
 tempfile = "3"
 termimad = { version = "0.35", default-features = false }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "signal"] }
 zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [target.'cfg(unix)'.dependencies]

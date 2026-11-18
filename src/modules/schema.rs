@@ -117,8 +117,12 @@ impl Module for Install {
             let file = download(downloader, root, self.schema, &self.latest)
                 .await
                 .context("输入方案下载失败")?;
-            let package = extract(file).context("输入方案解压失败")?;
-            let plan = InstallPlan::new(root, package)?;
+            let root = root.to_path_buf();
+            let plan = tokio::task::spawn_blocking(move || -> Result<_> {
+                let package = extract(file).context("输入方案解压失败")?;
+                InstallPlan::new(&root, package)
+            })
+            .await??;
             Ok(Box::new(PreparedInstall { plan }) as Box<dyn PreparedModule>)
         })
     }

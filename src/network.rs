@@ -4,8 +4,9 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use octocrab::{self, models::repos::Asset};
 use reqwest::{Client, StatusCode, header};
 use sha2::{Digest, Sha256};
-use std::{fs, io::Write, path::Path, time::Duration};
+use std::{fs, path::Path, time::Duration};
 use tempfile::NamedTempFile;
+use tokio::io::AsyncWriteExt;
 
 use crate::INSTALLER_DIR;
 use crate::digest;
@@ -50,8 +51,9 @@ impl Network {
         let installer_dir = root.join(INSTALLER_DIR);
         fs::create_dir_all(&installer_dir)
             .with_context(|| format!("无法创建目录 {}", installer_dir.display()))?;
-        let mut tempfile = NamedTempFile::new_in(&installer_dir)
+        let tempfile = NamedTempFile::new_in(&installer_dir)
             .with_context(|| format!("无法创建临时文件于目录 {}", installer_dir.display()))?;
+        let mut file = tokio::fs::File::from_std(tempfile.as_file().try_clone()?);
 
         let mut response = self
             .client
@@ -80,13 +82,13 @@ impl Network {
                 .with_prefix(format!("下载 {}", asset.name)),
         );
         while let Some(chunk) = response.chunk().await? {
-            tempfile.write_all(&chunk)?;
+            file.write_all(&chunk).await?;
             hasher.update(&chunk);
             progress.inc(chunk.len() as u64);
         }
         progress.finish();
 
-        tempfile.flush()?;
+        file.flush().await?;
         digest::verify(&hasher.finalize(), asset)?;
         if let Some(modified) = modified {
             tempfile.as_file().set_modified(modified)?;
