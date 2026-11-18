@@ -1,7 +1,11 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use colored::Colorize;
 use octocrab::models::repos::Asset;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tempfile::NamedTempFile;
 
 use crate::network::Network;
@@ -72,12 +76,9 @@ pub async fn get_latest() -> Result<LatestGrammar> {
     Ok(LatestGrammar { asset })
 }
 
-pub async fn check_update(
-    downloader: &Network,
-    path: &Path,
-    latest: &LatestGrammar,
-) -> Result<bool> {
-    downloader.check_update(path, &latest.asset).await
+pub fn check_update(installed: &InstalledGrammar, latest: &LatestGrammar) -> Result<bool> {
+    let modified: DateTime<Utc> = fs::metadata(&installed.path)?.modified()?.into();
+    Ok(latest.asset.updated_at > modified)
 }
 
 fn info_install() {

@@ -1,8 +1,7 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use octocrab::{self, models::repos::Asset};
-use reqwest::{Client, StatusCode, header};
+use reqwest::Client;
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, time::Duration};
 use tempfile::NamedTempFile;
@@ -32,21 +31,6 @@ impl Network {
         })
     }
 
-    pub async fn check_update(&self, path: &Path, asset: &Asset) -> Result<bool> {
-        let modified: DateTime<Utc> = fs::metadata(path)?.modified()?.into();
-        let response = self
-            .client
-            .get(asset.browser_download_url.clone())
-            .header(
-                header::IF_MODIFIED_SINCE,
-                modified.format("%a, %d %b %Y %H:%M:%S GMT").to_string(),
-            )
-            .send()
-            .await?
-            .error_for_status()?;
-        Ok(response.status() != StatusCode::NOT_MODIFIED)
-    }
-
     pub async fn download(&self, root: &Path, asset: &Asset) -> Result<NamedTempFile> {
         let installer_dir = root.join(INSTALLER_DIR);
         fs::create_dir_all(&installer_dir)
@@ -61,12 +45,6 @@ impl Network {
             .send()
             .await?
             .error_for_status()?;
-
-        let modified = response
-            .headers()
-            .get(header::LAST_MODIFIED)
-            .map(|value| -> Result<_> { Ok(DateTime::parse_from_rfc2822(value.to_str()?)?.into()) })
-            .transpose()?;
 
         let mut hasher = Sha256::new();
 
@@ -90,9 +68,7 @@ impl Network {
 
         file.flush().await?;
         digest::verify(&hasher.finalize(), asset)?;
-        if let Some(modified) = modified {
-            tempfile.as_file().set_modified(modified)?;
-        }
+        tempfile.as_file().set_modified(asset.updated_at.into())?;
 
         progress.finish_and_clear();
         Ok(tempfile)

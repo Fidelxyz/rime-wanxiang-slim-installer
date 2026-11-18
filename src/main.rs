@@ -91,7 +91,6 @@ struct HasUpdate {
 }
 
 async fn check_update(
-    downloader: &Network,
     schema: &InstalledSchema,
     grammar: Option<&InstalledGrammar>,
     latest: &LatestInfo,
@@ -144,8 +143,7 @@ async fn check_update(
             false
         }
         (Some(installed), Some(latest)) => {
-            grammar::check_update(downloader, &installed.path, latest)
-                .await
+            grammar::check_update(installed, latest)
                 .context("检查语法模型更新失败")
                 .inspect(|&has_update| {
                     println!(
@@ -326,7 +324,6 @@ async fn run() -> Result<()> {
             None => Action::Install,
             Some(installed_schema) => {
                 has_update = check_update(
-                    &downloader,
                     installed_schema,
                     installed_grammar.as_ref(),
                     &latest,
