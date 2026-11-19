@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use colored::Colorize;
+use crossterm::style::Stylize;
 use octocrab::models::repos::Asset;
 use std::{
     fs,
@@ -82,17 +82,17 @@ pub fn check_update(installed: &InstalledGrammar, latest: &LatestGrammar) -> Res
 }
 
 fn info_install() {
-    println!("{} 将安装语法模型：", "==>".bright_green());
-    println!("  语法模型：{}", GRAMMAR_NAME.bright_cyan());
+    println!("{} 将安装语法模型：", "==>".green());
+    println!("  语法模型：{}", GRAMMAR_NAME.cyan());
 }
 
 fn warn_install(root: &Path) {
     eprintln!(
         "{}",
-        format!("将安装语法模型至：{}", root.join(GRAMMAR_NAME).display()).bright_yellow()
+        format!("将安装语法模型至：{}", root.join(GRAMMAR_NAME).display()).yellow()
     );
     if root.join(GRAMMAR_NAME).exists() {
-        eprintln!("{}", "原有文件将被覆盖。".bright_yellow());
+        eprintln!("{}", "原有文件将被覆盖。".yellow());
     }
 }
 
@@ -111,6 +111,6 @@ fn install(file: NamedTempFile, path: &Path) -> Result<()> {
     }
 
     file.persist(path)?;
-    println!("{}", "语法模型安装完成。".bright_green());
+    println!("{}", "语法模型安装完成。".green());
     Ok(())
 }

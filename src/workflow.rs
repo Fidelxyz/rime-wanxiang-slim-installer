@@ -1,5 +1,5 @@
 use anyhow::{Result, ensure};
-use colored::Colorize;
+use crossterm::style::Stylize;
 use futures_util::future::try_join_all;
 use inquire::Confirm;
 use std::{future::Future, path::Path, pin::Pin};
@@ -60,6 +60,6 @@ impl Workflow {
     }
 
     fn prompt_finish() {
-        println!("{}", "完成，请重新部署。".bright_green());
+        println!("{}", "完成，请重新部署。".green());
     }
 }

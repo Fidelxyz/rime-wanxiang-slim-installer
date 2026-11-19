@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail};
-use colored::Colorize;
+use crossterm::style::Stylize;
 use regex::regex;
 use std::{fs, path::Path};
 use strum::IntoEnumIterator;
@@ -104,12 +104,12 @@ pub fn detect(root: &Path, schema: Schema) -> Result<Custom> {
 }
 
 fn info_apply(custom: Custom) {
-    println!("{} 将应用方案配置：", "==>".bright_green());
+    println!("{} 将应用方案配置：", "==>".green());
     if let Some(pinyin) = custom.pinyin {
-        println!("  拼音方案：{}", pinyin.to_string().bright_cyan());
+        println!("  拼音方案：{}", pinyin.to_string().cyan());
     }
     if let Some(aux_mode) = custom.aux_mode {
-        println!("  辅助码方案：{}", aux_mode.to_string().bright_cyan());
+        println!("  辅助码方案：{}", aux_mode.to_string().cyan());
     }
 }
 
@@ -124,7 +124,7 @@ fn warn_apply(root: &Path, schema: Schema) {
             } else {
                 format!("将创建配置文件：{}", target.display())
             }
-            .bright_yellow()
+            .yellow()
         );
     }
     eprintln!(
@@ -134,7 +134,7 @@ fn warn_apply(root: &Path, schema: Schema) {
             root.join(format!("{}.custom.yaml", schema.schema_id()))
                 .display()
         )
-        .bright_yellow()
+        .yellow()
     );
 }
 
@@ -169,7 +169,7 @@ fn apply(root: &Path, schema: Schema, custom: Custom) -> Result<()> {
         fs::write(target, text)?;
     }
 
-    println!("{}", "已应用方案配置。".bright_green());
+    println!("{}", "已应用方案配置。".green());
     Ok(())
 }
 

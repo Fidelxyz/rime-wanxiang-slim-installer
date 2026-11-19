@@ -1,4 +1,4 @@
-use colored::Colorize;
+use crossterm::style::Stylize;
 use std::{error::Error, fmt};
 
 #[derive(Debug)]
@@ -13,5 +13,5 @@ impl fmt::Display for UserCancelled {
 impl Error for UserCancelled {}
 
 pub fn print_err(e: &impl fmt::Display) {
-    eprintln!("{}", format!("错误：{e:#}").red());
+    eprintln!("{}", format!("错误：{e:#}").dark_red());
 }

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, ensure};
-use colored::Colorize;
+use crossterm::style::Stylize;
 use inquire::Confirm;
 use restart_manager::{AffectedApplications, RestartSession, ShutdownOptions};
 use std::path::Path;
@@ -12,12 +12,12 @@ pub fn release_file_locks(path: &Path) -> Result<()> {
         Ok(Some((session, applications))) => {
             eprintln!(
                 "{}",
-                format!("以下程序正在占用 {}：", path.display()).bright_yellow()
+                format!("以下程序正在占用 {}：", path.display()).yellow()
             );
             for application in &applications {
                 eprintln!(
                     "{}",
-                    format!("- {}", application.display_name().display()).bright_yellow()
+                    format!("- {}", application.display_name().display()).yellow()
                 );
             }
             ensure!(
@@ -36,7 +36,7 @@ pub fn release_file_locks(path: &Path) -> Result<()> {
         print_err(&e);
         eprintln!(
             "{}",
-            format!("请手动关闭所有占用 {} 的程序。", path.display()).bright_yellow()
+            format!("请手动关闭所有占用 {} 的程序。", path.display()).yellow()
         );
         ensure!(
             Confirm::new("是否已关闭占用程序并继续安装？")

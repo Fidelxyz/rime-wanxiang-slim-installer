@@ -9,7 +9,7 @@ license = "GPL-3.0-or-later"
 anyhow = "1"
 base16ct = { version = "1", features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
-colored = "3"
+crossterm = { version = "0.29", default-features = false }
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 indexmap = "2"
 indicatif = { version = "0.18", default-features = false, features = ["unicode-width"] }

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use colored::Colorize;
+use crossterm::style::Stylize;
 use octocrab::models::repos::{Asset, Release};
 use regex::regex;
 use semver::Version;
@@ -206,10 +206,10 @@ pub async fn get_changes(
 }
 
 fn info_install(schema: Schema) {
-    println!("{} 将安装输入方案：", "==>".bright_green());
-    println!("  方案：{}", schema.to_string().bright_cyan());
+    println!("{} 将安装输入方案：", "==>".green());
+    println!("  方案：{}", schema.to_string().cyan());
     if let Schema::Pro(aux) = schema {
-        println!("  辅助码方案：{}", aux.unwrap().to_string().bright_cyan());
+        println!("  辅助码方案：{}", aux.unwrap().to_string().cyan());
     }
 }
 
@@ -297,25 +297,16 @@ fn is_stale_file(name: &OsStr) -> bool {
 fn warn_install(root: &Path, plan: &InstallPlan) {
     eprintln!(
         "{}",
-        format!("将安装输入方案至目录：{}", root.display()).bright_yellow()
+        format!("将安装输入方案至目录：{}", root.display()).yellow()
     );
     for path in &plan.overwritten_dirs {
-        eprintln!(
-            "{}",
-            format!("将覆盖文件夹：{}", path.display()).bright_yellow()
-        );
+        eprintln!("{}", format!("将覆盖文件夹：{}", path.display()).yellow());
     }
     for path in &plan.overwritten_files {
-        eprintln!(
-            "{}",
-            format!("将覆盖文件：{}", path.display()).bright_yellow()
-        );
+        eprintln!("{}", format!("将覆盖文件：{}", path.display()).yellow());
     }
     for path in &plan.stale_files {
-        eprintln!(
-            "{}",
-            format!("将删除文件：{}", path.display()).bright_yellow()
-        );
+        eprintln!("{}", format!("将删除文件：{}", path.display()).yellow());
     }
 }
 
@@ -329,7 +320,7 @@ fn install(root: &Path, plan: &InstallPlan) -> Result<()> {
             .with_context(|| format!("无法移动 {} 至 {}", src.display(), dst.display()))?;
     }
 
-    println!("{}", "输入方案安装完成。".bright_green());
+    println!("{}", "输入方案安装完成。".green());
     Ok(())
 }
 

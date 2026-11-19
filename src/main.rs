@@ -11,7 +11,7 @@ mod workflow;
 mod yaml;
 
 use anyhow::{Context, Result};
-use colored::Colorize;
+use crossterm::style::Stylize;
 use inquire::{Confirm, InquireError, Select};
 use std::{cmp::Ordering, fmt::Display, path::Path, process::ExitCode};
 use strum::{Display, IntoEnumIterator};
@@ -104,9 +104,9 @@ async fn check_update(
                     "输入方案： v{} -> {}",
                     schema.version,
                     if has_update {
-                        latest.release.tag_name.yellow()
+                        latest.release.tag_name.as_str().dark_yellow()
                     } else {
-                        "已是最新".green()
+                        "已是最新".dark_green()
                     }
                 );
             })
@@ -143,9 +143,9 @@ async fn check_update(
                                 .with_timezone(&chrono::Local)
                                 .format("%Y-%m-%d %H:%M:%S %Z")
                         )
-                        .yellow()
+                        .dark_yellow()
                     } else {
-                        "已是最新".green()
+                        "已是最新".to_owned().dark_green()
                     }
                 );
             })
@@ -167,12 +167,12 @@ fn print_changes(changes: &[(String, String)]) {
 
     let skin = {
         let mut skin = termimad::MadSkin::default();
-        skin.set_fg(termimad::crossterm::style::Color::Grey);
+        skin.set_fg(crossterm::style::Color::Grey);
         skin
     };
     let breaking_skin = {
         let mut skin = termimad::MadSkin::default();
-        skin.set_fg(termimad::crossterm::style::Color::DarkYellow);
+        skin.set_fg(crossterm::style::Color::DarkYellow);
         skin
     };
     let width = usize::from(termimad::terminal_size().0).saturating_sub(2);
@@ -399,10 +399,7 @@ async fn run() -> Result<()> {
 
             Action::UpdateAll => {
                 if !has_update.schema && !has_update.grammar {
-                    println!(
-                        "{}",
-                        "输入方案和语法模型均已是最新，无需更新。".bright_green()
-                    );
+                    println!("{}", "输入方案和语法模型均已是最新，无需更新。".green());
                     return Ok(());
                 }
 
@@ -444,7 +441,7 @@ async fn run() -> Result<()> {
                     .is_none_or(|installed| installed.schema != schema);
                 let apply_custom = installed_custom != Some(custom);
                 if !install_schema && !apply_custom {
-                    println!("{}", "输入方案和方案配置无变动。".bright_green());
+                    println!("{}", "输入方案和方案配置无变动。".green());
                     return Ok(());
                 }
 
@@ -470,7 +467,7 @@ async fn run() -> Result<()> {
                     } else {
                         "已关闭接收预发布版本更新，正在重新检查更新。"
                     }
-                    .bright_green()
+                    .green()
                 );
 
                 continue;
@@ -494,7 +491,7 @@ async fn main() -> ExitCode {
         signal = tokio::signal::ctrl_c() => match signal {
             Ok(()) => interrupted(),
             Err(e) => {
-                eprintln!("{}", format!("错误：{e:?}").red());
+                eprintln!("{}", format!("错误：{e:?}").dark_red());
                 ExitCode::FAILURE
             }
         },
@@ -503,7 +500,7 @@ async fn main() -> ExitCode {
             Err(e) if e.is::<UserCancelled>() || matches!(e.downcast_ref::<InquireError>(), Some(InquireError::OperationCanceled)) => ExitCode::SUCCESS,
             Err(e) if matches!(e.downcast_ref::<InquireError>(), Some(InquireError::OperationInterrupted)) => interrupted(),
             Err(e) => {
-                eprintln!("{}", format!("错误：{e:?}").red());
+                eprintln!("{}", format!("错误：{e:?}").dark_red());
                 ExitCode::FAILURE
             }
         },
