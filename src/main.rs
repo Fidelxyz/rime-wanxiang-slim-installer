@@ -142,30 +142,28 @@ async fn check_update(
             println!("语法模型： 未安装");
             false
         }
-        (Some(installed), Some(latest)) => {
-            grammar::check_update(installed, latest)
-                .context("检查语法模型更新失败")
-                .inspect(|&has_update| {
-                    println!(
-                        "语法模型： {}",
-                        if has_update {
-                            format!(
-                                "有更新 {}",
-                                latest
-                                    .asset
-                                    .updated_at
-                                    .with_timezone(&chrono::Local)
-                                    .format("%Y-%m-%d %H:%M:%S %Z")
-                            )
-                            .yellow()
-                        } else {
-                            "已是最新".green()
-                        }
-                    );
-                })
-                .inspect_err(print_err)
-                .unwrap_or(false)
-        }
+        (Some(installed), Some(latest)) => grammar::check_update(installed, latest)
+            .context("检查语法模型更新失败")
+            .inspect(|&has_update| {
+                println!(
+                    "语法模型： {}",
+                    if has_update {
+                        format!(
+                            "有更新 {}",
+                            latest
+                                .asset
+                                .updated_at
+                                .with_timezone(&chrono::Local)
+                                .format("%Y-%m-%d %H:%M:%S %Z")
+                        )
+                        .yellow()
+                    } else {
+                        "已是最新".green()
+                    }
+                );
+            })
+            .inspect_err(print_err)
+            .unwrap_or(false),
         _ => false,
     };
 
