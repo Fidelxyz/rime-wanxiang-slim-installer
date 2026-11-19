@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.4.1...v1.5.0) (2026-11-19)
+
+
+### Features
+
+* show full changelog when checking updates ([048ae47](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/048ae4743969b1aaefeea99e0fe02f447b1339d1))
+
+
+### Bug Fixes
+
+* translate the changelog headings into English ([c7a5279](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/commit/c7a5279db7f2895265b3163e7566f3986099d81e))
+
 ## [1.4.1](https://github.com/Fidelxyz/rime-wanxiang-slim-installer/compare/v1.4.0...v1.4.1) (2026-11-18)
 
 
