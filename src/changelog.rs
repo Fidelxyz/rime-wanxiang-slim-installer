@@ -3,21 +3,20 @@ use indexmap::IndexMap;
 use regex::regex;
 use semver::Version;
 
-pub const BREAKING_CHANGES_HEADING: &str = "⚠ BREAKING CHANGES";
-
+pub const BREAKING_CHANGES_HEADING: &str = "⚠ 破坏性变更";
 const SECTION_ORDER: &[&str] = &[
     BREAKING_CHANGES_HEADING,
-    "Features",
-    "Bug Fixes",
-    "Performance Improvements",
-    "Reverts",
-    "Documentation",
-    "Styles",
-    "Miscellaneous Chores",
-    "Code Refactoring",
-    "Tests",
-    "Build System",
-    "Continuous Integration",
+    "新增功能",
+    "问题修复",
+    "性能优化",
+    "回退",
+    "杂项",
+    "重构",
+    "文档",
+    "代码风格",
+    "测试",
+    "构建系统",
+    "持续集成",
 ];
 
 pub fn collect_changes(
