@@ -115,24 +115,11 @@ async fn check_update(
     });
 
     if schema_has_update {
-        match schema::get_breaking_changes(schema, latest.schema.as_ref().unwrap())
+        match schema::get_changes(schema, latest.schema.as_ref().unwrap())
             .await
-            .context("无法获取破坏性变更")
+            .context("无法获取更新日志")
         {
-            Ok(changes) => {
-                if !changes.is_empty() {
-                    eprintln!("{}", "! 破坏性变更：".bright_yellow());
-                    let mut skin = termimad::MadSkin::default();
-                    skin.set_fg(termimad::crossterm::style::Color::DarkYellow);
-                    let width = usize::from(termimad::terminal_size().0).saturating_sub(2);
-                    for (version, body) in changes {
-                        skin.text(&format!("## v{version}\n{body}"), Some(width))
-                            .to_string()
-                            .lines()
-                            .for_each(|line| eprintln!("  {line}"));
-                    }
-                }
-            }
+            Ok(changes) => print_changes(&changes),
             Err(e) => print_err(&e),
         }
     }
@@ -170,6 +157,36 @@ async fn check_update(
     HasUpdate {
         schema: schema_has_update,
         grammar: grammar_has_update,
+    }
+}
+
+fn print_changes(changes: &[(String, String)]) {
+    if changes.is_empty() {
+        return;
+    }
+
+    let skin = {
+        let mut skin = termimad::MadSkin::default();
+        skin.set_fg(termimad::crossterm::style::Color::Grey);
+        skin
+    };
+    let breaking_skin = {
+        let mut skin = termimad::MadSkin::default();
+        skin.set_fg(termimad::crossterm::style::Color::DarkYellow);
+        skin
+    };
+    let width = usize::from(termimad::terminal_size().0).saturating_sub(2);
+
+    for (heading, entries) in changes {
+        let skin = if heading == changelog::BREAKING_CHANGES_HEADING {
+            &breaking_skin
+        } else {
+            &skin
+        };
+        skin.text(&format!("### {heading}\n{entries}"), Some(width))
+            .to_string()
+            .lines()
+            .for_each(|line| println!("  {line}"));
     }
 }
 

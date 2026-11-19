@@ -1,56 +1,66 @@
 use anyhow::{Context, Result};
+use indexmap::IndexMap;
 use regex::regex;
 use semver::Version;
-use std::collections::HashSet;
 
-pub fn breaking_changes(
+pub const BREAKING_CHANGES_HEADING: &str = "⚠ BREAKING CHANGES";
+
+const SECTION_ORDER: &[&str] = &[
+    BREAKING_CHANGES_HEADING,
+    "Features",
+    "Bug Fixes",
+    "Performance Improvements",
+    "Reverts",
+    "Documentation",
+    "Styles",
+    "Miscellaneous Chores",
+    "Code Refactoring",
+    "Tests",
+    "Build System",
+    "Continuous Integration",
+];
+
+pub fn collect_changes(
     changelog: &str,
     installed: &Version,
     latest: &Version,
-) -> Result<Vec<(Version, String)>> {
-    let mut changes = Vec::new();
-    let mut stable_versions = HashSet::new();
-    let mut version = None;
-    let mut breaking = false;
-    let mut body = String::new();
+) -> Result<Vec<(String, String)>> {
+    let mut sections: IndexMap<String, Vec<String>> = SECTION_ORDER
+        .iter()
+        .map(|&heading| (heading.to_owned(), Vec::new()))
+        .collect();
+    let mut in_range = false;
+    let mut section = None;
 
-    for line in changelog.lines().chain(std::iter::once("## ")) {
+    for line in changelog.lines() {
         if let Some(heading) = line.strip_prefix("## ") {
-            if let Some(version) = version.take()
-                && !body.trim().is_empty()
-            {
-                changes.push((version, body.trim().to_owned()));
-            }
-
-            body.clear();
-            breaking = false;
-
-            if heading.is_empty() {
-                continue;
-            }
-
-            let captures = regex!(r"^\[?v?([^\]\s]+)")
-                .captures(heading)
-                .with_context(|| format!("无法解析 CHANGELOG 标题：{heading}"))?;
-            let (_, [text]) = captures.extract();
-            let parsed =
-                Version::parse(text).with_context(|| format!("无法解析 CHANGELOG 版本：{text}"))?;
-            if parsed > *installed && parsed <= *latest {
-                if parsed.pre.is_empty() {
-                    stable_versions.insert((parsed.major, parsed.minor, parsed.patch));
-                }
-                version = Some(parsed);
-            }
+            let version = parse_version_heading(heading)?;
+            in_range = version > *installed && version <= *latest;
+            section = None;
         } else if let Some(heading) = line.strip_prefix("### ") {
-            breaking = heading.trim().ends_with("BREAKING CHANGES");
-        } else if version.is_some() && breaking {
-            body.push_str(line);
-            body.push('\n');
+            section = in_range.then(|| heading.trim().to_owned());
+        } else if let Some(heading) = &section
+            && !line.trim().is_empty()
+        {
+            let entry = regex!(r"(\s*\(\[[^\]]+\]\([^)]+\)\))+$").replace(line, "");
+            sections
+                .entry(heading.clone())
+                .or_default()
+                .push(entry.into_owned());
         }
     }
-    changes.retain(|(version, _)| {
-        version.pre.is_empty()
-            || !stable_versions.contains(&(version.major, version.minor, version.patch))
-    });
-    Ok(changes)
+
+    Ok(sections
+        .into_iter()
+        .filter(|(_, entries)| !entries.is_empty())
+        .map(|(heading, entries)| (heading, entries.join("\n")))
+        .collect())
+}
+
+fn parse_version_heading(heading: &str) -> Result<Version> {
+    let text = heading.trim_start_matches('[');
+    let text = text
+        .split_once([']', ' '])
+        .map_or(text, |(version, _)| version);
+    Version::parse(text).with_context(|| format!("无法解析 CHANGELOG 版本：{heading}"))
 }

@@ -1587,6 +1587,7 @@ dependencies = [
  "chrono",
  "colored",
  "futures-util",
+ "indexmap",
  "indicatif",
  "inquire",
  "octocrab",
